@@ -12,7 +12,7 @@ Reconstruction
 ## ToDo
 - [ ] SXのスペクトルのアーベル変換
 - [ ] 分光計測のスペクトルのアーベル変換
-- [ ] ポリクロメータの時間変化のアーベル変換
+- [x] ポリクロメータの時間変化のアーベル変換
 
 ## License
 Copyright &copy; 2018 Naoki Kenmochi
