@@ -17,4 +17,14 @@ Reconstruction
 ## License
 Copyright &copy; 2018 Naoki Kenmochi
 
+## Principle of Abel transform
+### 完全対称アーベル変換
+
+![Principe_1](principle_1.jpg)
+
+```math
+F(y)=2\int_y^\infty \frac{f(r)r\,dr}{\sqrt{r^2-y^2}}.
+```
+
+![Principe_2](principle_2.jpg)
 
