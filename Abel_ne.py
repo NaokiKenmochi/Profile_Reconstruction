@@ -2,7 +2,7 @@
 """
 
 from sightline_ne import sightline_ne
-from scipy import interpolate
+from scipy import interpolate, signal
 
 __author__  = "Naoki Kenmochi <kenmochi@edu.k.u-tokyo.ac.jp>"
 __version__ = "0.0.0"
@@ -64,6 +64,7 @@ class Abel_ne(sightline_ne):
         計測開始：中心より外側
         計測終了：最外殻
 
+        nlが２次元の場合，２次元のnを返す
         :param nl:
         :param sight_line:
         :return:
@@ -92,7 +93,12 @@ class Abel_ne(sightline_ne):
                                               - (k+j)**2*np.arccos(k/(k+j)) + k*np.sqrt(2*k*j+j**2) \
                                               - (k+j-1)**2*np.arccos((k-1)/(k+j-1)) + (k-1)*np.sqrt(2*k*j+j**2-2*j))
 
-        n = np.linalg.solve(A, nl)
+        if(nl.ndim == 1):
+            n = np.linalg.solve(A, nl)
+        else:
+            n = nl
+            for i in range(nl.__len__()):
+                n[i, :] = np.linalg.solve(A, nl[i, :])  #for文を回さず同じ動作をさせたい
 
         return n
 
@@ -139,20 +145,40 @@ class Abel_ne(sightline_ne):
 
         pol = pol_wGP['Pol730nm']
 
-        pol_av = np.average(pol[11000:12000, :], axis = 0)
         #sightline_pol = np.linspace(0.38, 0.82, 9)
         sightline_pol = 1e-3*np.array([379, 432, 484, 535, 583, 630, 689, 745, 820])
 
+        pol_av = np.average(pol[12000:13000, :], axis = 0)
+        pol_convolved = np.zeros((pol[:,0].__len__(), sightline_pol.__len__()))
+        for i in range(sightline_pol.__len__()):
+            num_convolve = 100
+            b = np.ones(num_convolve)/num_convolve
+            pol_convolved[:, i] = np.convolve(pol[:, i], b, mode='same')
+        #num_convolve = 100
+        #b = np.ones((num_convolve, 9))/num_convolve/4.5
+        #pol_convolved = signal.convolve2d(pol, b, boundary='symm', mode='same')    #TODO   convolve2dが使用できるか要検証
+        plt.plot(pol[:, 1])
+        plt.plot(pol_convolved[:, 1])
+        plt.show()
+
         if(spline == True):
             dr = (sightline_pol[-1] - sightline_pol[0])/((sightline_pol.__len__()-1)*2)
-            f = interpolate.interp1d(sightline_pol, pol_av, kind='cubic')
+            #f = interpolate.interp1d(sightline_pol, pol_av, kind='cubic')
+            f = interpolate.interp1d(sightline_pol, pol_convolved, kind='cubic')
             sightline_pol = np.arange(sightline_pol[0], sightline_pol[-1]+dr, dr)
-            pol_av = f(sightline_pol)
+            #pol_av = f(sightline_pol)
+            pol_convolved = f(sightline_pol)
 
-        pol_local = self.abelic_uneven_dr(pol_av, sightline_pol)
-        plt.plot(sightline_pol, pol_local, label='pol_local')
-        plt.plot(sightline_pol, pol_av, label='pol_av')
+        #pol_local = self.abelic_uneven_dr(pol_av, sightline_pol)
+        #plt.plot(sightline_pol, pol_local, label='pol_local')
+        #plt.plot(sightline_pol, pol_av, label='pol_av')
+        plt.plot(sightline_pol, pol_convolved[12500, :], label='pol_convolved')
+        pol_local_2 = self.abelic_uneven_dr(pol_convolved, sightline_pol)
+        plt.plot(sightline_pol, pol_local_2[12500, :], label='pol_local_2')
         plt.legend()
+        plt.show()
+        plt.figure(figsize=(16,9))
+        plt.contourf(pol_local_2[10000:20000, :])
         plt.show()
 
 
