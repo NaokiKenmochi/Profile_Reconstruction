@@ -131,6 +131,45 @@ class Abel_ne(sightline_ne):
 
         return n
 
+    def abelic_spectroscopy(self, spline=False):
+        """
+        1m分光器で計測されたスペクトルに対するアーベル変換を行います
+        :param spline:
+        :return:
+        """
+        data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161206sp/spectr_161206_18to27.txt", delimiter='\t', skiprows=1)
+        data = np.zeros((1024, 9))
+        d_order = np.array([0, 4, 1, 5, 2, 7, 3, 8, 9])
+        for i in range(9):
+            data[:, i] = data_org[:, d_order[i]]
+        wavelength = np.linspace(462.268, 474.769, 1024)
+        sightline_spect = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
+        #plt.plot(wavelength, data, label='Line-integrated')
+        plt.plot(sightline_spect, data[515, :], label='Line-integrated')
+        plt.title('Line-integrated')
+        plt.legend()
+
+        if(spline == True):
+            dr = (sightline_spect[-1] - sightline_spect[0])/((sightline_spect.__len__()-1)*1.5)
+            f = interpolate.interp1d(sightline_spect, data, kind='cubic')
+            sightline_spect = np.arange(sightline_spect[0],sightline_spect[-1]+dr, dr)
+            data = f(sightline_spect)
+
+        spect_lodal = self.abelic_uneven_dr(data, sightline_spect)
+        #plt.plot(wavelength, spect_lodal, label='local')
+        plt.plot(sightline_spect[1:], spect_lodal[515, 1:], label='Local')
+        #plt.title('Local')
+        plt.legend()
+        plt.show()
+
+        plt.figure(figsize=(16,9))
+        WAVELENGTH, R_POL = np.meshgrid(wavelength, sightline_spect)
+        plt.contourf(WAVELENGTH, R_POL, spect_lodal.T, cmap='jet')
+        plt.colorbar()
+        plt.xlabel('Wavelength [nm]')
+        plt.ylabel('r [mm]')
+        plt.show()
+
     def abelic_pol(self, spline=False):
         """
         ポリクロメータの光量に対するアーベル変換を行います
@@ -143,13 +182,13 @@ class Abel_ne(sightline_ne):
         pol_wGP = np.load(file_path + '/' + file_name_wGP)
         pol_woGP = np.load(file_path + '/' + file_name_woGP)
 
-        pol = pol_wGP['Pol730nm']
+        pol = pol_wGP['Pol710nm']
 
         #sightline_pol = np.linspace(0.38, 0.82, 9)
         sightline_pol = 1e-3*np.array([379, 432, 484, 535, 583, 630, 689, 745, 820])
 
-        pol_av = np.average(pol[12000:13000, :], axis = 0)
-        pol_convolved = np.zeros((pol[:,0].__len__(), sightline_pol.__len__()))
+        #pol_av = np.average(pol[12000:13000, :], axis=0)
+        pol_convolved = np.zeros((pol[:, 0].__len__(), sightline_pol.__len__()))
         for i in range(sightline_pol.__len__()):
             num_convolve = 100
             b = np.ones(num_convolve)/num_convolve
@@ -178,7 +217,13 @@ class Abel_ne(sightline_ne):
         plt.legend()
         plt.show()
         plt.figure(figsize=(16,9))
-        plt.contourf(pol_local_2[10000:20000, :])
+        time = np.linspace(1, 2, 10000)
+        TIME, R_POL = np.meshgrid(time, sightline_pol)
+        plt.contourf(TIME, R_POL, pol_local_2[10000:20000, :].T, cmap='jet')
+        plt.colorbar()
+        plt.xlabel('Time [sec]')
+        plt.ylabel('r [mm]')
+        plt.title('delta ne_wGP - ne_woGP (Pol710nm)')
         plt.show()
 
 
@@ -237,4 +282,5 @@ class Abel_ne(sightline_ne):
 if __name__ == '__main__':
     abne = Abel_ne()
     #abne.plot_ne_nel(spline=True)
-    abne.abelic_pol(spline=True)
+    #abne.abelic_pol(spline=True)
+    abne.abelic_spectroscopy(spline=True)
