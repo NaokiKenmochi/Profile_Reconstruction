@@ -144,10 +144,15 @@ class Abel_ne(sightline_ne):
             data[:, i] = data_org[:, d_order[i]]
         wavelength = np.linspace(462.268, 474.769, 1024)
         sightline_spect = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
-        #plt.plot(wavelength, data, label='Line-integrated')
-        plt.plot(sightline_spect, data[515, :], label='Line-integrated')
-        plt.title('Line-integrated')
+        for i in range(sightline_spect.__len__()):
+            plt.plot(wavelength, data[:, i], label=('r=%.3fm' % sightline_spect[i]))
+        #plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
+        plt.title('Line-integrated, 20161206, #18-27')
+        plt.xlabel('Wavelength [nm]')
+        plt.ylabel('Intensity [a.u.]')
         plt.legend()
+        plt.tight_layout()
+        plt.show()
 
         if(spline == True):
             dr = (sightline_spect[-1] - sightline_spect[0])/((sightline_spect.__len__()-1)*1.5)
@@ -157,8 +162,16 @@ class Abel_ne(sightline_ne):
 
         spect_lodal = self.abelic_uneven_dr(data, sightline_spect)
         #plt.plot(wavelength, spect_lodal, label='local')
-        plt.plot(sightline_spect[1:], spect_lodal[515, 1:], label='Local')
-        #plt.title('Local')
+        #plt.plot(sightline_spect[1:], spect_lodal[515, 1:], '-o', label='Local')
+        for i in range(sightline_spect.__len__()):
+            plt.plot(wavelength, spect_lodal[:, i], label=('r=%.3fm' % sightline_spect[i]))
+        #plt.xlabel('r [m]')
+        #plt.ylabel('Intensity [a.u.]')
+        #plt.title('468.6nm, 20161206, #18-27')
+        plt.title('Local, 20161206, #18-27')
+        plt.xlabel('Wavelength [nm]')
+        plt.ylabel('Intensity [a.u.]')
+        plt.tight_layout()
         plt.legend()
         plt.show()
 
@@ -169,6 +182,57 @@ class Abel_ne(sightline_ne):
         plt.xlabel('Wavelength [nm]')
         plt.ylabel('r [mm]')
         plt.show()
+
+    def abelic_SX(self, spline=False):
+        """
+        X線計測されたスペクトルに対するアーベル変換を行います
+        :param spline:
+        :return:
+        """
+        file_path = '/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/SX/171109'
+        file_name = np.array(['73_78', '62_67', '53_58', '45_50'])
+        for (i, x) in enumerate(file_name):
+            data_buf = np.load(file_path + '/' + file_name[i] + '.npz')
+            if(i==0):
+                data = data_buf['count']
+                energy = data_buf['energy']
+            else:
+                data = np.c_[data, data_buf['count']]
+        sightline_SX = np.array([0.40, 0.45, 0.50, 0.55])
+        for i in range(sightline_SX.__len__()):
+            plt.plot(energy, data[:, i], label=('r=%.3fm' % sightline_SX[i]))
+        plt.title('Line-integrated, 20171109')
+        plt.xlabel('Energy [eV]')
+        plt.ylabel('Count')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+        if(spline == True):
+            dr = (sightline_SX[-1] - sightline_SX[0])/((sightline_SX.__len__()-1)*1.1)
+            f = interpolate.interp1d(sightline_SX, data, kind='cubic')
+            sightline_SX= np.arange(sightline_SX[0],sightline_SX[-1]+dr, dr)
+            data = f(sightline_SX)
+
+        SX_local = self.abelic_uneven_dr(data, sightline_SX)
+        for i in range(sightline_SX.__len__()):
+            plt.plot(energy, SX_local[:, i], label=('r=%.3fm' % sightline_SX[i]))
+        plt.title('Local, 20171109')
+        plt.xlabel('Energy [eV]')
+        plt.ylabel('Count')
+        plt.tight_layout()
+        plt.legend()
+        plt.show()
+
+        plt.figure(figsize=(16,9))
+        ENERGY, R_SX = np.meshgrid(energy, sightline_SX)
+        plt.contourf(ENERGY, R_SX, SX_local.T, cmap='jet')
+        plt.colorbar()
+        plt.xlabel('Energy [nm]')
+        plt.ylabel('r [mm]')
+        plt.show()
+
+        np.savez('SX_Local_171109.npz', energy=energy, count=SX_local)
 
     def abelic_pol(self, spline=False):
         """
@@ -283,4 +347,5 @@ if __name__ == '__main__':
     abne = Abel_ne()
     #abne.plot_ne_nel(spline=True)
     #abne.abelic_pol(spline=True)
-    abne.abelic_spectroscopy(spline=True)
+    #abne.abelic_spectroscopy(spline=False)
+    abne.abelic_SX(spline=False)
