@@ -1,6 +1,7 @@
 """分光器で計測したスペクトルを元にイオン温度，フロー速度を求めるモジュールです
 """
-from scipy.optimize import curve_fit, leastsq
+from scipy.optimize import curve_fit
+from scipy import integrate
 from matplotlib import rc
 
 __author__  = "Naoki Kenmochi <kenmochi@edu.k.u-tokyo.ac.jp>"
@@ -17,6 +18,8 @@ class SpectAnal:
     def __init__(self):
         self.file_path = "/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161206sp/spectr_161206_18to27.txt"
         self.instwid = 0.024485
+        self.sightline_spect = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
+
 
     def load_spec_data(self):
         data_org = np.loadtxt(self.file_path, delimiter='\t', skiprows=1)
@@ -25,7 +28,6 @@ class SpectAnal:
         for i in range(9):
             data[:, i] = data_org[:, d_order[i]]
         wavelength = np.linspace(462.268, 474.769, 1024)
-        sightline_spect = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
         return data, wavelength
 
     def gauss(self, x, k0, k1, k2, k3):
@@ -74,27 +76,41 @@ class SpectAnal:
         bounds_ed[3] = 468.65
         bounds_ed[4] = 1.0
         init_values = np.array([10, 40, 0, 0.01])
-        num_pos = 4
-        #wavelength_2D = np.ones((wavelength.__len__(), 9)).T*wavelength
-        #popt, pcov = curve_fit(self.HefitverS, wavelength, data[:, 3], bounds=(bounds_st, bounds_ed), p0=init_values)
-        popt, pcov = curve_fit(self.HefitverS_const_wl, wavelength, data[:, num_pos], p0=init_values)
-        sigma = np.sqrt(np.diag(pcov))
-        #p = np.asarray(data).astype('float')
-        #popt, pcov = curve_fit(self.HefitverS_const_wl, wavelength_2D.T, data)#, p0=init_values)
-        HeT = 469000000*4*(np.sqrt(popt[3]**2 - self.instwid**2)/468.565)**2
-        HeTerr = 469000000*4*(np.sqrt((np.abs(popt[3]) + np.abs(sigma[3]))**2 - self.instwid**2)/468.565)**2 - HeT
-        print('T_He = %5.3f ± %5.3f eV' % (HeT, HeTerr))
-        print(popt)
-        print(sigma)
+        num_pos = 1
+        HeT_arr = np.array([])
+        HeTerr_arr = np.array([])
+        HeV_arr = np.array([])
+        HeVerr_arr = np.array([])
+        Heint_arr = np.array([])
+        for (num_pos, x) in enumerate(self.sightline_spect):
+            popt, pcov = curve_fit(self.HefitverS_const_wl, wavelength, data[:, num_pos], p0=init_values)
+            sigma = np.sqrt(np.diag(pcov))
+            HeT = 469000000*4*(np.sqrt(popt[3]**2 - self.instwid**2)/468.565)**2
+            HeTerr = 469000000*4*(np.sqrt((np.abs(popt[3]) + np.abs(sigma[3]))**2 - self.instwid**2)/468.565)**2 - HeT
+            Hedx = popt[2]
+            HeV = 299800000*Hedx/468.565
+            HeVerr = 299800000*sigma[2]/468.565
+            Heint = integrate.quad(self.HefitverS_const_wl, bounds_st[3], bounds_ed[3], args=(popt[0], popt[1], popt[2], popt[3]))[0] - popt[0]*(bounds_ed[3]-bounds_st[3])
 
-        plt.plot(wavelength, data[:, num_pos], label='Line-integrated')
-        #plt.plot(wavelength[710:770], data[710:770, 3], label='Line-integrated')
-        #plt.plot(wavelength, self.gauss(wavelength, 12, 225, 468.6, 0.03))
-        st_devi = np.sqrt(np.diag(pcov))
-        #plt.plot(wavelength, self.gauss(wavelength, *popt), '-o', label='gauss fitting')
-        plt.plot(wavelength, self.HefitverS_const_wl(wavelength, *popt), '-o', label='gauss fitting')
-        plt.title('$k0+k1*exp\{-((x-k2)/k3)^2\}$\nk0=%5.3f±%5.3f, \nk1=%5.3f±%5.3f, \nk2=%5.3f±%5.3f, \nk3=%5.3f±%5.3f'
-                  % (popt[0], st_devi[0], popt[1], st_devi[1], popt[2], st_devi[2], popt[3], st_devi[3]), loc='left')
+            HeT_arr = np.append(HeT_arr, HeT)
+            HeTerr_arr = np.append(HeTerr_arr, HeTerr)
+            HeV_arr = np.append(HeV_arr, HeV)
+            HeVerr_arr = np.append(HeVerr_arr, HeVerr)
+            Heint_arr = np.append(Heint_arr, Heint)
+
+            print('========= r = %5.3f m =========' % self.sightline_spect[num_pos])
+            print('T_He = %5.3f ± %5.3f eV' % (HeT, HeTerr))
+            print('V_He = %5.3f ± %5.3f m/s' % (HeV, HeVerr))
+            print('He_int = %5.3f' % Heint)
+            #print(popt)
+            #print(sigma)
+
+            plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % self.sightline_spect[num_pos])
+            #plt.plot(wavelength[710:770], data[710:770, 3], label='Line-integrated')
+            st_devi = np.sqrt(np.diag(pcov))
+            plt.plot(wavelength, self.HefitverS_const_wl(wavelength, *popt), '-o', label='gauss fitting(r=%5.3fm' % self.sightline_spect[num_pos])
+        #plt.title('$k0+k1*exp\{-((x-k2)/k3)^2\}$\nk0=%5.3f±%5.3f, \nk1=%5.3f±%5.3f, \nk2=%5.3f±%5.3f, \nk3=%5.3f±%5.3f'
+        #          % (popt[0], st_devi[0], popt[1], st_devi[1], popt[2], st_devi[2], popt[3], st_devi[3]), loc='left')
         #plt.xlim(471.2, 471.4)
         plt.xlim(468.2, 469.0)
         plt.xlabel('Wavelength [nm]')
@@ -103,6 +119,8 @@ class SpectAnal:
         plt.tight_layout()
         plt.show()
 
+        plt.errorbar(self.sightline_spect, HeT_arr, yerr=HeTerr_arr, fmt='ro')
+        plt.show()
 
 if __name__ == '__main__':
     span = SpectAnal()

@@ -144,33 +144,34 @@ class Abel_ne(sightline_ne):
             data[:, i] = data_org[:, d_order[i]]
         wavelength = np.linspace(462.268, 474.769, 1024)
         sightline_spect = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
-        for i in range(sightline_spect.__len__()):
-            plt.plot(wavelength, data[:, i], label=('r=%.3fm' % sightline_spect[i]))
-        #plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
+        #for i in range(sightline_spect.__len__()):
+        #    plt.plot(wavelength, data[:, i], label=('r=%.3fm' % sightline_spect[i]))
+        plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
         plt.title('Line-integrated, 20161206, #18-27')
         plt.xlabel('Wavelength [nm]')
         plt.ylabel('Intensity [a.u.]')
         plt.legend()
         plt.tight_layout()
-        plt.show()
+        #plt.show()
 
         if(spline == True):
-            dr = (sightline_spect[-1] - sightline_spect[0])/((sightline_spect.__len__()-1)*1.5)
+            dr = (sightline_spect[-1] - sightline_spect[0])/((sightline_spect.__len__()-1)*5)
             f = interpolate.interp1d(sightline_spect, data, kind='cubic')
-            sightline_spect = np.arange(sightline_spect[0],sightline_spect[-1]+dr, dr)
+            sightline_spect = np.arange(sightline_spect[0],sightline_spect[-1], dr)
             data = f(sightline_spect)
 
+        plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
         spect_lodal = self.abelic_uneven_dr(data, sightline_spect)
         #plt.plot(wavelength, spect_lodal, label='local')
-        #plt.plot(sightline_spect[1:], spect_lodal[515, 1:], '-o', label='Local')
-        for i in range(sightline_spect.__len__()):
-            plt.plot(wavelength, spect_lodal[:, i], label=('r=%.3fm' % sightline_spect[i]))
-        #plt.xlabel('r [m]')
-        #plt.ylabel('Intensity [a.u.]')
-        #plt.title('468.6nm, 20161206, #18-27')
-        plt.title('Local, 20161206, #18-27')
-        plt.xlabel('Wavelength [nm]')
+        plt.plot(sightline_spect[1:], spect_lodal[515, 1:], '-o', label='Local')
+        #for i in range(sightline_spect.__len__()):
+        #    plt.plot(wavelength, spect_lodal[:, i], label=('r=%.3fm' % sightline_spect[i]))
+        plt.xlabel('r [m]')
         plt.ylabel('Intensity [a.u.]')
+        plt.title('468.6nm, 20161206, #18-27')
+        #plt.title('Local, 20161206, #18-27')
+        #plt.xlabel('Wavelength [nm]')
+        #plt.ylabel('Intensity [a.u.]')
         plt.tight_layout()
         plt.legend()
         plt.show()
@@ -182,6 +183,8 @@ class Abel_ne(sightline_ne):
         plt.xlabel('Wavelength [nm]')
         plt.ylabel('r [mm]')
         plt.show()
+
+        return wavelength, sightline_spect, data, spect_lodal
 
     def abelic_SX(self, spline=False):
         """
@@ -201,6 +204,7 @@ class Abel_ne(sightline_ne):
         sightline_SX = np.array([0.40, 0.45, 0.50, 0.55])
         for i in range(sightline_SX.__len__()):
             plt.plot(energy, data[:, i], label=('r=%.3fm' % sightline_SX[i]))
+        #plt.plot(sightline_SX, data[20, :], '-^', label='Line-integrated')
         plt.title('Line-integrated, 20171109')
         plt.xlabel('Energy [eV]')
         plt.ylabel('Count')
@@ -209,12 +213,14 @@ class Abel_ne(sightline_ne):
         plt.show()
 
         if(spline == True):
-            dr = (sightline_SX[-1] - sightline_SX[0])/((sightline_SX.__len__()-1)*1.1)
+            dr = (sightline_SX[-1] - sightline_SX[0])/((sightline_SX.__len__()-1)*2.0)
             f = interpolate.interp1d(sightline_SX, data, kind='cubic')
-            sightline_SX= np.arange(sightline_SX[0],sightline_SX[-1]+dr, dr)
+            sightline_SX= np.arange(sightline_SX[0],sightline_SX[-1], dr)
             data = f(sightline_SX)
+        #plt.plot(sightline_SX, data[20, :], '-^', label='Line-integrated')
 
         SX_local = self.abelic_uneven_dr(data, sightline_SX)
+        #plt.plot(sightline_SX, SX_local[20, :], '-o', label='Local')
         for i in range(sightline_SX.__len__()):
             plt.plot(energy, SX_local[:, i], label=('r=%.3fm' % sightline_SX[i]))
         plt.title('Local, 20171109')
@@ -248,10 +254,8 @@ class Abel_ne(sightline_ne):
 
         pol = pol_wGP['Pol710nm']
 
-        #sightline_pol = np.linspace(0.38, 0.82, 9)
         sightline_pol = 1e-3*np.array([379, 432, 484, 535, 583, 630, 689, 745, 820])
 
-        #pol_av = np.average(pol[12000:13000, :], axis=0)
         pol_convolved = np.zeros((pol[:, 0].__len__(), sightline_pol.__len__()))
         for i in range(sightline_pol.__len__()):
             num_convolve = 100
@@ -274,7 +278,6 @@ class Abel_ne(sightline_ne):
 
         #pol_local = self.abelic_uneven_dr(pol_av, sightline_pol)
         #plt.plot(sightline_pol, pol_local, label='pol_local')
-        #plt.plot(sightline_pol, pol_av, label='pol_av')
         plt.plot(sightline_pol, pol_convolved[12500, :], label='pol_convolved')
         pol_local_2 = self.abelic_uneven_dr(pol_convolved, sightline_pol)
         plt.plot(sightline_pol, pol_local_2[12500, :], label='pol_local_2')
@@ -347,5 +350,5 @@ if __name__ == '__main__':
     abne = Abel_ne()
     #abne.plot_ne_nel(spline=True)
     #abne.abelic_pol(spline=True)
-    #abne.abelic_spectroscopy(spline=False)
-    abne.abelic_SX(spline=False)
+    #abne.abelic_spectroscopy(spline=True)
+    abne.abelic_SX(spline=True)
