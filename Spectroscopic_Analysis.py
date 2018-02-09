@@ -5,7 +5,7 @@ from scipy import integrate
 from Abel_ne import Abel_ne
 
 __author__  = "Naoki Kenmochi <kenmochi@edu.k.u-tokyo.ac.jp>"
-__version__ = "0.0.0"
+__version__ = "0.1.0"
 __date__    = "6 Feb 2018"
 
 import numpy as np
@@ -295,6 +295,25 @@ class SpectAnal(Abel_ne):
         plt.ylabel('$V_{HeII}$ [m/s]')
         plt.tight_layout()
         plt.show()
+
+    def modify_center_for_V(self, dx, dxcent, CorHe):
+        """
+        modifiy spectral center and recalculate velocity
+        :param dx:
+        :param dxcent: int
+        :param CorHe: char
+        :return: Velocity of CorHe
+        """
+        if(CorHe=="C"):
+            V = 299800000*(dx - dxcent)/464.742
+        elif(CorHe=="He"):
+            V = 299800000*(dx - dxcent)/468.565
+        else:
+            print("Enter 'C' or 'He' into the CorHe")
+
+        return V
+
+
 
 if __name__ == '__main__':
     span = SpectAnal()
