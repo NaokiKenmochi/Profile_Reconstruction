@@ -90,7 +90,6 @@ class SpectAnal(Abel_ne):
             popt_0, pcov_0 = curve_fit(self.gauss, wavelength, data[:, num_pos], p0=init_values)
 
             plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
-            st_devi = np.sqrt(np.diag(pcov_0))
             #In IgorPro #ToDo Igorとの違いを確認
             #$("W_" + chstr)	 ={$wr[pcsrA], wavemax($wr, xcsrA, xcsrB) - $wr[pcsrA], 464.742, W_coef[2] - 464.742, W_coef[3]}
             init_values_2 = np.array([popt_0[0], popt_0[1], popt_0[2]-464.742, popt_0[3]])
@@ -135,18 +134,82 @@ class SpectAnal(Abel_ne):
         #plt.title(label + ', spectr_161206_18to27', loc='right', fontsize=20)
         plt.title(label + ', 161111#36-44', loc='right', fontsize=20)
         plt.xlabel('r [m]')
-        plt.ylabel('Intensity of HeII [a.u.]')
+        plt.ylabel('Intensity of CIII [a.u.]')
 
         plt.subplot(223)
         plt.errorbar(sightline_spect, CT_arr, yerr=CTerr_arr, fmt='ro')
         plt.xlabel('r [m]')
-        plt.ylabel('$T_{HeII}$ [eV]')
-        plt.ylim(0, 20)
+        plt.ylabel('$T_{CIII}$ [eV]')
+        plt.ylim(0, 50)
 
         plt.subplot(224)
         plt.errorbar(sightline_spect, CV_arr, yerr=CVerr_arr, fmt='bo')
         plt.xlabel('r [m]')
-        plt.ylabel('$V_{HeII}$ [m/s]')
+        plt.ylabel('$V_{CIII}$ [m/s]')
+        plt.tight_layout()
+        plt.show()
+
+    def gauss_fitting_HeI(self, isAbel=False, spline=False, convolve=False):
+        wavelength, sightline_spect, data, spect_local = super().abelic_spectroscopy(spline=spline, convolve=convolve)
+        init_values = np.array([10, 500, 471.31457, 0.01])
+        HeIT_arr = np.array([])
+        HeITerr_arr = np.array([])
+        HeIint_arr = np.array([])
+        bounds_st = 471.2
+        bounds_ed = 471.5
+
+        if(isAbel==True):
+            data = spect_local
+            label = 'Local'
+        else:
+            label = 'Line-Integrated'
+
+        plt.figure(figsize=(12, 8))
+        plt.subplot(221)
+
+        for (num_pos, x) in enumerate(sightline_spect):
+            popt, pcov = curve_fit(self.gauss, wavelength, data[:, num_pos], p0=init_values)
+
+            plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
+            sigma = np.sqrt(np.diag(pcov))
+            #TODO Errorの値が大きく出ている？　要確認
+            HeIT = 469000000*4*(np.sqrt(popt[3]**2 - self.instwid**2)/471.31457)**2
+            HeITerr = 469000000*4*(np.sqrt((np.abs(popt[3]) + np.abs(sigma[3]))**2 - self.instwid**2)/471.31457)**2 - HeIT
+            HeIdx = popt[2]+sigma[2]-471.31457
+            HeIint = integrate.quad(self.gauss, bounds_st, bounds_ed,
+                                  args=(popt[0], popt[1], popt[2], popt[3]))[0] - popt[0]*(bounds_ed-bounds_st)
+
+            HeIT_arr = np.append(HeIT_arr, HeIT)
+            HeITerr_arr = np.append(HeITerr_arr, HeITerr)
+            HeIint_arr = np.append(HeIint_arr, HeIint)
+
+            print('========= r = %5.3f m =========' % sightline_spect[num_pos])
+            print('T_HeI = %5.3f ± %5.3f eV' % (HeIT, HeITerr))
+            print('HeI_int = %5.3f' % HeIint)
+
+            plt.plot(wavelength, self.gauss(wavelength, *popt), '-o',
+                     label='gauss fitting(r=%5.3fm' % sightline_spect[num_pos])
+            #plt.plot(wavelength, self.gauss(wavelength, *popt_0), '-o', label='gauss fitting(r=%5.3fm' % sightline_spect[num_pos])
+            #plt.ylim(0, 1e5)
+
+        plt.legend()
+        plt.xlim(471.1342, 471.49935)
+        plt.xlabel('Wavelength [nm]')
+        plt.ylabel('Intensity [a.u.]')
+
+        plt.subplot(222)
+        plt.plot(sightline_spect, HeIint_arr, '-o', color='green', label=label)
+        plt.legend()
+        #plt.title(label + ', spectr_161206_18to27', loc='right', fontsize=20)
+        plt.title(label + ', 161111#36-44', loc='right', fontsize=20)
+        plt.xlabel('r [m]')
+        plt.ylabel('Intensity of HeI [a.u.]')
+
+        plt.subplot(223)
+        plt.errorbar(sightline_spect, HeIT_arr, yerr=HeITerr_arr, fmt='ro')
+        plt.xlabel('r [m]')
+        plt.ylabel('$T_{HeII}$ [eV]')
+        plt.ylim(0, 5)
         plt.tight_layout()
         plt.show()
 
@@ -204,11 +267,9 @@ class SpectAnal(Abel_ne):
 
             plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
             #plt.plot(wavelength[710:770], data[710:770, 3], label='Line-integrated')
-            st_devi = np.sqrt(np.diag(pcov))
             plt.plot(wavelength, self.HefitverS_const_wl(wavelength, *popt), '-o', label='gauss fitting(r=%5.3fm' % sightline_spect[num_pos])
         plt.legend()
         #plt.title('$k0+k1*exp\{-((x-k2)/k3)^2\}$\nk0=%5.3f±%5.3f, \nk1=%5.3f±%5.3f, \nk2=%5.3f±%5.3f, \nk3=%5.3f±%5.3f'
-        #          % (popt[0], st_devi[0], popt[1], st_devi[1], popt[2], st_devi[2], popt[3], st_devi[3]), loc='left')
         #plt.xlim(471.2, 471.4)
         plt.xlim(468.2, 469.0)
         plt.xlabel('Wavelength [nm]')
@@ -237,6 +298,7 @@ class SpectAnal(Abel_ne):
 
 if __name__ == '__main__':
     span = SpectAnal()
-    #span.gauss_fitting_HeII(isAbel=False, spline=False, convolve=False)
-    span.gauss_fitting_CIII()
+    span.gauss_fitting_HeII(isAbel=False, spline=False, convolve=False)
+    #span.gauss_fitting_CIII(isAbel=True, spline=True, convolve=False)
+    #span.gauss_fitting_HeI(isAbel=False, spline=False, convolve=False)
 
