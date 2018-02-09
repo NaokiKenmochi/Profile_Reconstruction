@@ -96,7 +96,7 @@ class Abel_ne(sightline_ne):
         if(nl.ndim == 1):
             n = np.linalg.solve(A, nl)
         else:
-            n = nl
+            n = np.zeros(nl.shape)
             for i in range(nl.__len__()):
                 n[i, :] = np.linalg.solve(A, nl[i, :])  #for文を回さず同じ動作をさせたい
 
@@ -131,19 +131,44 @@ class Abel_ne(sightline_ne):
 
         return n
 
-    def abelic_spectroscopy(self, spline=False):
+    def abelic_spectroscopy(self, spline=False, convolve=False):
         """
         1m分光器で計測されたスペクトルに対するアーベル変換を行います
         :param spline:
         :return:
         """
-        data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161206sp/spectr_161206_18to27.txt", delimiter='\t', skiprows=1)
-        data = np.zeros((1024, 9))
-        d_order = np.array([0, 4, 1, 5, 2, 7, 3, 8, 9])
-        for i in range(9):
+        #data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161206sp/spectr_161206_18to27.txt", delimiter='\t', skiprows=1)
+        #d_order = np.array([0, 4, 1, 5, 2, 7, 3, 8, 9])
+        #wavelength = np.linspace(462.268, 474.769, 1024)
+
+        #data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_22to33.txt", delimiter='\t', skiprows=1)
+        #d_order = np.array([0, 5, 1, 6, 2, 7, 3, 8, 4])
+
+        #data_org_ch2 = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch2_35to44.txt", delimiter='\t', skiprows=1)
+        #data_org_ch5 = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch5_36to44.txt", delimiter='\t', skiprows=1)
+        #data_org = np.c_[data_org_ch2, data_org_ch5]
+        #sightline_spect_ch2 = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
+        #sightline_spect_ch5 = 1e-3*np.array([379, 432, 484, 535, 583, 630, 689, 745, 820])
+        #sightline_spect = sightline_spect_ch5#np.sort(np.r_[sightline_spect_ch2, sightline_spect_ch5])
+        ##d_order = np.array([9, 0, 5, 14, 3, 10, 6, 15, 1, 11, 7, 16, 2, 12, 8, 17, 4, 13])
+        ##d_order = np.array([0, 5, 3, 6, 1, 7, 2, 8, 4])
+        #d_order = np.array([9, 14, 10, 15, 11, 16, 12, 17, 13])
+
+        data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch56_50.txt", delimiter='\t', skiprows=1)
+        sightline_spect = 1e-3*np.array([450, 451])
+        d_order = np.array([0, 1])
+        wavelength = np.linspace(462.261, 474.761, 1024)
+        data = np.zeros((1024, sightline_spect.__len__()))
+        for i in range(sightline_spect.__len__()):
             data[:, i] = data_org[:, d_order[i]]
-        wavelength = np.linspace(462.268, 474.769, 1024)
-        sightline_spect = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
+
+        if(convolve==True):
+            spect_convolved = np.zeros((data[:, 0].__len__(), sightline_spect.__len__()))
+            for i in range(data[:, 0].__len__()):
+                num_convolve = 5
+                b = np.ones(num_convolve)/num_convolve
+                spect_convolved[i, :] = np.convolve(data[i, :], b, mode='same')
+            data = spect_convolved
         #for i in range(sightline_spect.__len__()):
         #    plt.plot(wavelength, data[:, i], label=('r=%.3fm' % sightline_spect[i]))
         plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
@@ -155,20 +180,20 @@ class Abel_ne(sightline_ne):
         #plt.show()
 
         if(spline == True):
-            dr = (sightline_spect[-1] - sightline_spect[0])/((sightline_spect.__len__()-1)*5)
-            f = interpolate.interp1d(sightline_spect, data, kind='cubic')
+            dr = (sightline_spect[-1] - sightline_spect[0])/((sightline_spect.__len__()-1)*2)
+            f = interpolate.interp1d(sightline_spect, data)#, kind='zero')
             sightline_spect = np.arange(sightline_spect[0],sightline_spect[-1], dr)
             data = f(sightline_spect)
 
         plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
-        spect_lodal = self.abelic_uneven_dr(data, sightline_spect)
-        #plt.plot(wavelength, spect_lodal, label='local')
-        plt.plot(sightline_spect[1:], spect_lodal[515, 1:], '-o', label='Local')
+        spect_local = self.abelic_uneven_dr(data, sightline_spect)
+        #plt.plot(wavelength, spect_local, label='local')
+        plt.plot(sightline_spect[1:], spect_local[515, 1:], '-o', label='Local')
         #for i in range(sightline_spect.__len__()):
-        #    plt.plot(wavelength, spect_lodal[:, i], label=('r=%.3fm' % sightline_spect[i]))
+        #    plt.plot(wavelength, spect_local[:, i], label=('r=%.3fm' % sightline_spect[i]))
         plt.xlabel('r [m]')
         plt.ylabel('Intensity [a.u.]')
-        plt.title('468.6nm, 20161206, #18-27')
+        plt.title('468.6nm, 20161111, #22-33')
         #plt.title('Local, 20161206, #18-27')
         #plt.xlabel('Wavelength [nm]')
         #plt.ylabel('Intensity [a.u.]')
@@ -176,15 +201,15 @@ class Abel_ne(sightline_ne):
         plt.legend()
         plt.show()
 
-        plt.figure(figsize=(16,9))
-        WAVELENGTH, R_POL = np.meshgrid(wavelength, sightline_spect)
-        plt.contourf(WAVELENGTH, R_POL, spect_lodal.T, cmap='jet')
-        plt.colorbar()
-        plt.xlabel('Wavelength [nm]')
-        plt.ylabel('r [mm]')
-        plt.show()
+        #plt.figure(figsize=(16,9))
+        #WAVELENGTH, R_POL = np.meshgrid(wavelength, sightline_spect)
+        #plt.contourf(WAVELENGTH, R_POL, spect_local.T, cmap='jet')
+        #plt.colorbar()
+        #plt.xlabel('Wavelength [nm]')
+        #plt.ylabel('r [mm]')
+        #plt.show()
 
-        return wavelength, sightline_spect, data, spect_lodal
+        return wavelength, sightline_spect, data, spect_local
 
     def abelic_SX(self, spline=False):
         """
@@ -201,26 +226,40 @@ class Abel_ne(sightline_ne):
                 energy = data_buf['energy']
             else:
                 data = np.c_[data, data_buf['count']]
+        data_org = data
+        sightline_SX_org = np.array([0.40, 0.45, 0.50, 0.55])
         sightline_SX = np.array([0.40, 0.45, 0.50, 0.55])
-        for i in range(sightline_SX.__len__()):
-            plt.plot(energy, data[:, i], label=('r=%.3fm' % sightline_SX[i]))
-        #plt.plot(sightline_SX, data[20, :], '-^', label='Line-integrated')
+
+        if(spline == True):
+            dr = (sightline_SX_org[-1] - sightline_SX_org[0])/((sightline_SX_org.__len__()-1)*3.0)
+            f = interpolate.interp1d(sightline_SX_org, data, kind='cubic')
+            sightline_SX = np.arange(sightline_SX_org[0],sightline_SX_org[-1], dr)
+            data = f(sightline_SX)
+
+        SX_local = self.abelic_uneven_dr(data, sightline_SX)
+
+        plt.figure(figsize=(12,8))
+        plt.subplot(221)
+        plt.plot(sightline_SX_org, data_org[20, :], '-^', label='Line-integrated')
+        if(spline==True):
+            plt.plot(sightline_SX, data[20, :], '-^', label='Line-integrated (interpolated)')
+        plt.plot(sightline_SX, SX_local[20, :], '-o', label='Local')
+        plt.xlabel('r [m]')
+        plt.ylabel('count at %deV' % energy[20])
+        plt.legend()
+        #plt.show()
+
+        plt.subplot(223)
+        for i in range(sightline_SX_org.__len__()):
+            plt.plot(energy, data[:, i], label=('r=%.3fm' % sightline_SX_org[i]))
         plt.title('Line-integrated, 20171109')
         plt.xlabel('Energy [eV]')
         plt.ylabel('Count')
         plt.legend()
         plt.tight_layout()
-        plt.show()
+        #plt.show()
 
-        if(spline == True):
-            dr = (sightline_SX[-1] - sightline_SX[0])/((sightline_SX.__len__()-1)*2.0)
-            f = interpolate.interp1d(sightline_SX, data, kind='cubic')
-            sightline_SX= np.arange(sightline_SX[0],sightline_SX[-1], dr)
-            data = f(sightline_SX)
-        #plt.plot(sightline_SX, data[20, :], '-^', label='Line-integrated')
-
-        SX_local = self.abelic_uneven_dr(data, sightline_SX)
-        #plt.plot(sightline_SX, SX_local[20, :], '-o', label='Local')
+        plt.subplot(224)
         for i in range(sightline_SX.__len__()):
             plt.plot(energy, SX_local[:, i], label=('r=%.3fm' % sightline_SX[i]))
         plt.title('Local, 20171109')
@@ -228,9 +267,9 @@ class Abel_ne(sightline_ne):
         plt.ylabel('Count')
         plt.tight_layout()
         plt.legend()
-        plt.show()
+        #plt.show()
 
-        plt.figure(figsize=(16,9))
+        plt.subplot(222)
         ENERGY, R_SX = np.meshgrid(energy, sightline_SX)
         plt.contourf(ENERGY, R_SX, SX_local.T, cmap='jet')
         plt.colorbar()
@@ -350,5 +389,5 @@ if __name__ == '__main__':
     abne = Abel_ne()
     #abne.plot_ne_nel(spline=True)
     #abne.abelic_pol(spline=True)
-    #abne.abelic_spectroscopy(spline=True)
-    abne.abelic_SX(spline=True)
+    abne.abelic_spectroscopy(spline=False, convolve=False)
+    #abne.abelic_SX(spline=True)
