@@ -144,19 +144,19 @@ class Abel_ne(sightline_ne):
         #data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_22to33.txt", delimiter='\t', skiprows=1)
         #d_order = np.array([0, 5, 1, 6, 2, 7, 3, 8, 4])
 
-        data_org_ch2 = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch2_35to44.txt", delimiter='\t', skiprows=1)
-        data_org_ch5 = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch5_36to44.txt", delimiter='\t', skiprows=1)
-        data_org = np.c_[data_org_ch2, data_org_ch5]
-        sightline_spect_ch2 = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
-        sightline_spect_ch5 = 1e-3*np.array([379, 432, 484, 535, 583, 630, 689, 745, 820])
-        sightline_spect = sightline_spect_ch5#np.sort(np.r_[sightline_spect_ch2, sightline_spect_ch5])
-        #d_order = np.array([9, 0, 5, 14, 3, 10, 6, 15, 1, 11, 7, 16, 2, 12, 8, 17, 4, 13])
-        #d_order = np.array([0, 5, 3, 6, 1, 7, 2, 8, 4])
-        d_order = np.array([9, 14, 10, 15, 11, 16, 12, 17, 13])
+        #data_org_ch2 = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch2_35to44.txt", delimiter='\t', skiprows=1)
+        #data_org_ch5 = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch5_36to44.txt", delimiter='\t', skiprows=1)
+        #data_org = np.c_[data_org_ch2, data_org_ch5]
+        #sightline_spect_ch2 = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
+        #sightline_spect_ch5 = 1e-3*np.array([379, 432, 484, 535, 583, 630, 689, 745, 820])
+        #sightline_spect = sightline_spect_ch5#np.sort(np.r_[sightline_spect_ch2, sightline_spect_ch5])
+        ##d_order = np.array([9, 0, 5, 14, 3, 10, 6, 15, 1, 11, 7, 16, 2, 12, 8, 17, 4, 13])
+        ##d_order = np.array([0, 5, 3, 6, 1, 7, 2, 8, 4])
+        #d_order = np.array([9, 14, 10, 15, 11, 16, 12, 17, 13])
 
-        #data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch56_50.txt", delimiter='\t', skiprows=1)
-        #sightline_spect = 1e-3*np.array([450, 451])
-        #d_order = np.array([0, 1])
+        data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch56_50.txt", delimiter='\t', skiprows=1)
+        sightline_spect = 1e-3*np.array([450, 451])
+        d_order = np.array([0, 1])
 
         wavelength = np.linspace(462.261, 474.761, 1024)
         data = np.zeros((1024, sightline_spect.__len__()))

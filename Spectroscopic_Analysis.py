@@ -99,7 +99,7 @@ class SpectAnal(Abel_ne):
 
             sigma = np.sqrt(np.diag(pcov))
             #TODO Errorの値が大きく出ている？　要確認
-            CT = 469000000*12*(np.sqrt(popt[4]**2 - self.instwid**2)/468.565)**2
+            CT = 469000000*12*(np.sqrt(popt[4]**2 - self.instwid**2)/464.742)**2
             CTerr = 469000000*12*(np.sqrt((np.abs(popt[4]) + np.abs(sigma[3]))**2 - self.instwid**2)/464.742)**2 - CT
             Cdx = popt[3]
             CV = 299800000*Cdx/464.742
@@ -231,6 +231,7 @@ class SpectAnal(Abel_ne):
         HeV_arr = np.array([])
         HeVerr_arr = np.array([])
         Heint_arr = np.array([])
+        Hedx_arr = np.array([])
 
         if(isAbel==True):
             data = spect_local
@@ -252,22 +253,28 @@ class SpectAnal(Abel_ne):
             Heint = integrate.quad(self.HefitverS_const_wl, bounds_st[3], bounds_ed[3],
                                    args=(popt[0], popt[1], popt[2], popt[3]))[0] - popt[0]*(bounds_ed[3]-bounds_st[3])
 
+            #HeV = self.modify_center_for_V(Hedx, -0.007, "He")
             HeT_arr = np.append(HeT_arr, HeT)
             HeTerr_arr = np.append(HeTerr_arr, HeTerr)
             HeV_arr = np.append(HeV_arr, HeV)
             HeVerr_arr = np.append(HeVerr_arr, HeVerr)
             Heint_arr = np.append(Heint_arr, Heint)
+            Hedx_arr = np.append(Hedx_arr, Hedx)
 
             print('========= r = %5.3f m =========' % sightline_spect[num_pos])
             print('T_He = %5.3f ± %5.3f eV' % (HeT, HeTerr))
             print('V_He = %5.3f ± %5.3f m/s' % (HeV, HeVerr))
             print('He_int = %5.3f' % Heint)
-            #print(popt)
-            #print(sigma)
+            print('Hdx = %5.3f' % Hedx)
 
             plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
             #plt.plot(wavelength[710:770], data[710:770, 3], label='Line-integrated')
             plt.plot(wavelength, self.HefitverS_const_wl(wavelength, *popt), '-o', label='gauss fitting(r=%5.3fm' % sightline_spect[num_pos])
+        print('Center of Hedx: %5.3f' % np.average(Hedx_arr))
+        for (num_pos, x) in enumerate(sightline_spect):
+            HeV_arr[num_pos] = self.modify_center_for_V(Hedx_arr[num_pos], np.average(Hedx_arr), CorHe="C") #TODO   dxcenterの与え方　要注意
+            print('========= r = %5.3f m =========' % sightline_spect[num_pos])
+            print('V_He = %5.3f ± %5.3f m/s' % (HeV_arr[num_pos], HeVerr_arr[num_pos]))
         plt.legend()
         #plt.title('$k0+k1*exp\{-((x-k2)/k3)^2\}$\nk0=%5.3f±%5.3f, \nk1=%5.3f±%5.3f, \nk2=%5.3f±%5.3f, \nk3=%5.3f±%5.3f'
         #plt.xlim(471.2, 471.4)
@@ -296,20 +303,151 @@ class SpectAnal(Abel_ne):
         plt.tight_layout()
         plt.show()
 
-    def modify_center_for_V(self, dx, dxcent, CorHe):
+    def gauss_fitting(self, Species, isAbel=False, spline=False, convolve=False):   #TODO   現状ではHeIIの処理のみ．　HeIとC（Ar）の処理も追加する
+        wavelength, sightline_spect, data, spect_local = super().abelic_spectroscopy(spline=spline, convolve=convolve)
+
+        bounds_st = np.array([471.2, 468.45, 464.6])    #[HeI, HeII, CIII]
+        bounds_ed = np.array([471.5, 468.65, 464.83])    #[HeI, HeII, CIII]
+        T_arr = np.array([])
+        Terr_arr = np.array([])
+        V_arr = np.array([])
+        Verr_arr = np.array([])
+        int_arr = np.array([])
+        dx_arr = np.array([])
+
+        if(isAbel==True):
+            data = spect_local
+            label = 'Local'
+        else:
+            label = 'Line-Integrated'
+
+        plt.figure(figsize=(12, 8))
+        plt.subplot(221)
+
+        for (num_pos, x) in enumerate(sightline_spect):
+            if(Species=="HeI"):
+                init_values = np.array([10, 500, 471.31457, 0.01])
+                popt, pcov = curve_fit(self.gauss, wavelength, data[:, num_pos], p0=init_values)
+                plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
+                sigma = np.sqrt(np.diag(pcov))
+                #TODO Errorの値が大きく出ている？　要確認
+                T = 469000000*4*(np.sqrt(popt[3]**2 - self.instwid**2)/471.31457)**2
+                Terr = 469000000*4*(np.sqrt((np.abs(popt[3]) + np.abs(sigma[3]))**2 - self.instwid**2)/471.31457)**2 - T
+                dx = popt[2]+sigma[2]-471.31457
+                int = integrate.quad(self.gauss, bounds_st[0], bounds_ed[0],
+                                     args=(popt[0], popt[1], popt[2], popt[3]))[0] - popt[0]*(bounds_ed[0]-bounds_st[0])
+                V = 0.0
+                Verr = 0.0
+
+            elif(Species=="HeII"):
+                init_values = np.array([10, 40, 0, 0.01])
+                popt, pcov = curve_fit(self.HefitverS_const_wl, wavelength, data[:, num_pos], p0=init_values)
+                sigma = np.sqrt(np.diag(pcov))
+                T = 469000000*4*(np.sqrt(popt[3]**2 - self.instwid**2)/468.565)**2
+                Terr = 469000000*4*(np.sqrt((np.abs(popt[3]) + np.abs(sigma[3]))**2 - self.instwid**2)/468.565)**2 - T
+                dx = popt[2]
+                V = 299800000*dx/468.565
+                Verr = 299800000*sigma[2]/468.565
+                int = integrate.quad(self.HefitverS_const_wl, bounds_st[1], bounds_ed[1],
+                                       args=(popt[0], popt[1], popt[2], popt[3]))[0] - popt[0]*(bounds_ed[1]-bounds_st[1])
+
+            elif(Species=="CIII"):
+                init_values = np.array([10, 500, 464.742, 0.01])
+                popt_0, pcov_0 = curve_fit(self.gauss, wavelength, data[:, num_pos], p0=init_values)
+
+                plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
+                #In IgorPro #ToDo Igorとの違いを確認
+                #$("W_" + chstr)	 ={$wr[pcsrA], wavemax($wr, xcsrA, xcsrB) - $wr[pcsrA], 464.742, W_coef[2] - 464.742, W_coef[3]}
+                init_values_2 = np.array([popt_0[0], popt_0[1], popt_0[2]-464.742, popt_0[3]])
+                popt, pcov = curve_fit(lambda wavelength, k0, k1, k3, k4: self.accurategauss(wavelength, k0, k1, 464.742, k3, k4),
+                                       wavelength, data[:, num_pos], p0=init_values_2)
+                popt = np.insert(popt, 2, init_values[2])
+                sigma = np.sqrt(np.diag(pcov))
+                #TODO Errorの値が大きく出ている？　要確認
+                T = 469000000*12*(np.sqrt(popt[4]**2 - self.instwid**2)/464.742)**2
+                Terr = 469000000*12*(np.sqrt((np.abs(popt[4]) + np.abs(sigma[3]))**2 - self.instwid**2)/464.742)**2 - T
+                dx = popt[3]
+                V = 299800000*dx/464.742
+                Verr = 299800000*sigma[2]/464.742
+                int = integrate.quad(self.accurategauss, bounds_st[2], bounds_ed[2],
+                                  args=(popt[0], popt[1], popt[2], popt[3], popt[4]))[0] - popt[0]*(bounds_ed[2]-bounds_st[2])
+            else:
+                print("Enter 'HeI', 'HeII', or 'CIII'")
+                return
+
+
+            T_arr = np.append(T_arr, T)
+            Terr_arr = np.append(Terr_arr, Terr)
+            V_arr = np.append(V_arr, V)
+            Verr_arr = np.append(Verr_arr, Verr)
+            int_arr = np.append(int_arr, int)
+            dx_arr = np.append(dx_arr, dx)
+
+            print('========= r = %5.3f m =========' % sightline_spect[num_pos])
+            print('T_%s = %5.3f ± %5.3f eV' % (Species, T, Terr))
+            print('V_%s = %5.3f ± %5.3f m/s' % (Species, V, Verr))
+            print('%s_int = %5.3f' % (Species, int))
+            print('%sdx = %5.3f' % (Species, dx))
+
+            plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
+            if(Species=="HeI"):
+                plt.plot(wavelength, self.gauss(wavelength, *popt), '-o',
+                         label='gauss fitting(r=%5.3fm' % sightline_spect[num_pos])
+                plt.xlim(471.1342, 471.49935)
+            elif(Species=="HeII"):
+                plt.plot(wavelength, self.HefitverS_const_wl(wavelength, *popt), '-o', label='gauss fitting(r=%5.3fm' % sightline_spect[num_pos])
+                plt.xlim(468.2, 469.0)
+            elif(Species=="CIII"):
+                plt.plot(wavelength, self.accurategauss(wavelength, popt_0[0], popt_0[1], 464.742, popt_0[2]-464.742, popt_0[3]), '-o',
+                         label='accurategauss fitting(r=%5.3fm' % sightline_spect[num_pos])
+                plt.xlim(464.4, 465.2)
+
+        print('Center of %sdx: %5.3f' % (Species, np.average(dx_arr)))
+        for (num_pos, x) in enumerate(sightline_spect):
+            V_arr[num_pos] = self.modify_center_for_V(dx_arr[num_pos], np.average(dx_arr), Species=Species) #TODO   dxcenterの与え方　要注意
+            print('========= r = %5.3f m =========' % sightline_spect[num_pos])
+            print('V_%s = %5.3f ± %5.3f m/s' % (Species, V_arr[num_pos], Verr_arr[num_pos]))
+
+        plt.legend()
+        plt.xlabel('Wavelength [nm]')
+        plt.ylabel('Intensity [a.u.]')
+
+        plt.subplot(222)
+        plt.plot(sightline_spect, int_arr, '-o', color='green', label=label)
+        plt.legend()
+        #plt.title(label + ', spectr_161206_18to27', loc='right', fontsize=20)
+        plt.title(label + ', 161111#36-44', loc='right', fontsize=20)
+        plt.xlabel('r [m]')
+        plt.ylabel('Intensity of HeII [a.u.]')
+
+        plt.subplot(223)
+        plt.errorbar(sightline_spect, T_arr, yerr=Terr_arr, fmt='ro')
+        plt.xlabel('r [m]')
+        plt.ylabel('$T_{%s}$ [eV]' % Species)
+        plt.ylim(0, 20)
+
+        plt.subplot(224)
+        plt.errorbar(sightline_spect, V_arr, yerr=Verr_arr, fmt='bo')
+        plt.xlabel('r [m]')
+        plt.ylabel('$V_{%s}$ [m/s]' % Species)
+        plt.tight_layout()
+        plt.show()
+
+
+    def modify_center_for_V(self, dx, dxcent, Species):
         """
         modifiy spectral center and recalculate velocity
         :param dx:
         :param dxcent: int
-        :param CorHe: char
+        :param Species: char
         :return: Velocity of CorHe
         """
-        if(CorHe=="C"):
-            V = 299800000*(dx - dxcent)/464.742
-        elif(CorHe=="He"):
+        if(Species=="HeI"):
+            V = 0.0
+        elif(Species=="HeII"):
             V = 299800000*(dx - dxcent)/468.565
-        else:
-            print("Enter 'C' or 'He' into the CorHe")
+        elif(Species=="CIII"):
+            V = 299800000*(dx - dxcent)/464.742
 
         return V
 
@@ -317,7 +455,8 @@ class SpectAnal(Abel_ne):
 
 if __name__ == '__main__':
     span = SpectAnal()
-    span.gauss_fitting_HeII(isAbel=False, spline=False, convolve=False)
-    #span.gauss_fitting_CIII(isAbel=True, spline=True, convolve=False)
+    #span.gauss_fitting_HeII(isAbel=False, spline=False, convolve=False)
+    #span.gauss_fitting_CIII(isAbel=True, spline=False, convolve=False)
     #span.gauss_fitting_HeI(isAbel=False, spline=False, convolve=False)
+    span.gauss_fitting(Species="CIII", isAbel=False, spline=False, convolve=False)
 
