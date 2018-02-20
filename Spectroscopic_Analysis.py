@@ -15,19 +15,38 @@ import abel
 
 class SpectAnal(Abel_ne):
 
-    def __init__(self):
+    def __init__(self, date, shotNo, LOCALorPPL, instwid, lm0, dlm, opp_ch):
+        self.date = date
+        self.shotnum = shotNo
+        self.LOCALorPPL = LOCALorPPL
         self.file_path = "/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161206sp/spectr_161206_18to27.txt"
-        self.instwid = 0.025129#0.024485
+        #self.instwid = 0.025129
+        #self.instwid = 0.024485 #20161206
+        self.instwid = instwid
+        self.lm0 = lm0
+        self.dlm = dlm
+        self.opp_ch = opp_ch
         self.sightline_spect = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
 
 
     def load_spec_data(self):
-        data_org = np.loadtxt(self.file_path, delimiter='\t', skiprows=1)
-        data = np.zeros((1024, 9))
-        d_order = np.array([0, 4, 1, 5, 2, 7, 3, 8, 9])
-        for i in range(9):
-            data[:, i] = data_org[:, d_order[i]]
-        wavelength = np.linspace(462.268, 474.769, 1024)
+        if self.LOCALorPPL == "PPL":
+            file_path = "/Volumes/C/rt1sp/d" + str(self.date) + "sp/d" + str(self.shotnum) + ".asc"
+            data_org = np.loadtxt(file_path)
+            data = data_org[::-1, 1:]
+            wavelength = np.linspace(self.lm0, self.lm0 + self.dlm*1024, 1024)
+        elif self.LOCALorPPL == "LOCAL":
+            data_org = np.loadtxt(self.file_path, delimiter='\t', skiprows=1)
+            data = np.zeros((1024, 9))
+            d_order = np.array([0, 4, 1, 5, 2, 7, 3, 8, 9])
+            for i in range(9):
+                data[:, i] = data_org[:, d_order[i]]
+            wavelength = np.linspace(self.lm0, self.lm0 + self.dlm*1024, 1024)
+            #wavelength = np.linspace(462.268, 474.769, 1024)
+        else:
+            print("Enter 'PPL' or 'LOCAL'.")
+            return
+
         return data, wavelength
 
 
@@ -200,8 +219,8 @@ class SpectAnal(Abel_ne):
         plt.subplot(222)
         plt.plot(sightline_spect, HeIint_arr, '-o', color='green', label=label)
         plt.legend()
-        #plt.title(label + ', spectr_161206_18to27', loc='right', fontsize=20)
-        plt.title(label + ', 161111#36-44', loc='right', fontsize=20)
+        plt.title(label + ', spectr_161206_18to27', loc='right', fontsize=20)
+        #plt.title(label + ', 161111#36-44', loc='right', fontsize=20)
         plt.xlabel('r [m]')
         plt.ylabel('Intensity of HeI [a.u.]')
 
@@ -214,9 +233,6 @@ class SpectAnal(Abel_ne):
         plt.show()
 
     def gauss_fitting_HeII(self, isAbel=False, spline=False, convolve=False):
-        #data, wavelength = self.load_spec_data()    #TODO アーベル変換したスペクトルに対して解析する
-        wavelength, sightline_spect, data, spect_local = super().abelic_spectroscopy(spline=spline, convolve=convolve)
-
         #popt, pcov = curve_fit(self.gauss, wavelength, data[:, 3], bounds=([0, 0, 471.20, 0], [np.inf, np.inf, 471.40, 1.0]))
         #popt, pcov = curve_fit(self.gauss, wavelength, data[:, 3], bounds=([0, 0, 468.45, 0], [np.inf, np.inf, 468.65, 1.0]))
         bounds_st = np.zeros(12)
@@ -234,9 +250,11 @@ class SpectAnal(Abel_ne):
         Hedx_arr = np.array([])
 
         if(isAbel==True):
+            wavelength, sightline_spect, data, spect_local = super().abelic_spectroscopy(spline=spline, convolve=convolve)
             data = spect_local
             label = 'Local'
         else:
+            data, wavelength = self.load_spec_data()
             label = 'Line-Integrated'
 
         plt.figure(figsize=(12, 8))
@@ -304,8 +322,6 @@ class SpectAnal(Abel_ne):
         plt.show()
 
     def gauss_fitting(self, Species, isAbel=False, spline=False, convolve=False):   #TODO   現状ではHeIIの処理のみ．　HeIとC（Ar）の処理も追加する
-        wavelength, sightline_spect, data, spect_local = super().abelic_spectroscopy(spline=spline, convolve=convolve)
-
         bounds_st = np.array([471.2, 468.45, 464.6])    #[HeI, HeII, CIII]
         bounds_ed = np.array([471.5, 468.65, 464.83])    #[HeI, HeII, CIII]
         T_arr = np.array([])
@@ -315,10 +331,15 @@ class SpectAnal(Abel_ne):
         int_arr = np.array([])
         dx_arr = np.array([])
 
+        DXCENT = -0.0165 #TODO   dxcenterの与え方に注意
+
         if(isAbel==True):
+            wavelength, sightline_spect, data, spect_local = super().abelic_spectroscopy(spline=spline, convolve=convolve)
             data = spect_local
             label = 'Local'
         else:
+            data, wavelength = self.load_spec_data()
+            sightline_spect = np.arange(10)
             label = 'Line-Integrated'
 
         plt.figure(figsize=(12, 8))
@@ -402,9 +423,14 @@ class SpectAnal(Abel_ne):
                          label='accurategauss fitting(r=%5.3fm' % sightline_spect[num_pos])
                 plt.xlim(464.4, 465.2)
 
-        print('Center of %sdx: %5.3f' % (Species, np.average(dx_arr)))
+        print('Center of %sdx: %5.3f' % (Species, DXCENT))
+        #print('Center of %sdx: %5.3f' % (Species, np.average(dx_arr)))
         for (num_pos, x) in enumerate(sightline_spect):
-            V_arr[num_pos] = self.modify_center_for_V(dx_arr[num_pos], np.average(dx_arr), Species=Species) #TODO   dxcenterの与え方　要注意
+            V_arr[num_pos] = self.modify_center_for_V(dx_arr[num_pos],
+                                                      (dx_arr[self.opp_ch[0]-1]+dx_arr[self.opp_ch[1]-1])/2.0,
+                                                      Species=Species) #TODO   dxcenterの与え方　要注意
+            #V_arr[num_pos] = self.modify_center_for_V(dx_arr[num_pos], np.average(dx_arr), Species=Species) #TODO   dxcenterの与え方　要注意
+            #V_arr[num_pos] = self.modify_center_for_V(dx_arr[num_pos], dxcent=DXCENT, Species=Species) #TODO   dxcenterの与え方　要注意
             print('========= r = %5.3f m =========' % sightline_spect[num_pos])
             print('V_%s = %5.3f ± %5.3f m/s' % (Species, V_arr[num_pos], Verr_arr[num_pos]))
 
@@ -415,8 +441,9 @@ class SpectAnal(Abel_ne):
         plt.subplot(222)
         plt.plot(sightline_spect, int_arr, '-o', color='green', label=label)
         plt.legend()
+        plt.title('Date: %d, Shot No.: %d, %s' % (self.date, self.shotnum, label), loc='right', fontsize=20)
         #plt.title(label + ', spectr_161206_18to27', loc='right', fontsize=20)
-        plt.title(label + ', 161111#36-44', loc='right', fontsize=20)
+        #plt.title(label + ', 161111#36-44', loc='right', fontsize=20)
         plt.xlabel('r [m]')
         plt.ylabel('Intensity of HeII [a.u.]')
 
@@ -430,6 +457,7 @@ class SpectAnal(Abel_ne):
         plt.errorbar(sightline_spect, V_arr, yerr=Verr_arr, fmt='bo')
         plt.xlabel('r [m]')
         plt.ylabel('$V_{%s}$ [m/s]' % Species)
+        plt.ylim(-1e4, 1e4)
         plt.tight_layout()
         plt.show()
 
@@ -454,9 +482,10 @@ class SpectAnal(Abel_ne):
 
 
 if __name__ == '__main__':
-    span = SpectAnal()
+    span = SpectAnal(date=20180219, shotNo=40, LOCALorPPL="PPL",
+                     instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
     #span.gauss_fitting_HeII(isAbel=False, spline=False, convolve=False)
     #span.gauss_fitting_CIII(isAbel=True, spline=False, convolve=False)
     #span.gauss_fitting_HeI(isAbel=False, spline=False, convolve=False)
-    span.gauss_fitting(Species="CIII", isAbel=False, spline=False, convolve=False)
+    span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
 

@@ -137,9 +137,10 @@ class Abel_ne(sightline_ne):
         :param spline:
         :return:
         """
-        #data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161206sp/spectr_161206_18to27.txt", delimiter='\t', skiprows=1)
-        #d_order = np.array([0, 4, 1, 5, 2, 7, 3, 8, 9])
-        #wavelength = np.linspace(462.268, 474.769, 1024)
+        data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161206sp/spectr_161206_18to27.txt", delimiter='\t', skiprows=1)
+        d_order = np.array([0, 4, 1, 5, 2, 7, 3, 8, 9])
+        wavelength = np.linspace(462.268, 474.769, 1024)
+        sightline_spect = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
 
         #data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_22to33.txt", delimiter='\t', skiprows=1)
         #d_order = np.array([0, 5, 1, 6, 2, 7, 3, 8, 4])
@@ -154,11 +155,12 @@ class Abel_ne(sightline_ne):
         ##d_order = np.array([0, 5, 3, 6, 1, 7, 2, 8, 4])
         #d_order = np.array([9, 14, 10, 15, 11, 16, 12, 17, 13])
 
-        data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch56_50.txt", delimiter='\t', skiprows=1)
-        sightline_spect = 1e-3*np.array([450, 451])
-        d_order = np.array([0, 1])
+        #data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161111sp/spectr_161111_ch56_50.txt", delimiter='\t', skiprows=1)
+        #data_org = np.loadtxt("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161206sp/spectr_ch56_161206_18to27.txt", delimiter='\t', skiprows=1)
+        #sightline_spect = 1e-3*np.array([450, 451])
+        #d_order = np.array([0, 1])
 
-        wavelength = np.linspace(462.261, 474.761, 1024)
+        #wavelength = np.linspace(462.261, 474.761, 1024)
         data = np.zeros((1024, sightline_spect.__len__()))
         for i in range(sightline_spect.__len__()):
             data[:, i] = data_org[:, d_order[i]]
