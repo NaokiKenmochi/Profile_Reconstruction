@@ -11,6 +11,7 @@ __date__    = "6 Feb 2018"
 import numpy as np
 import matplotlib.pyplot as plt
 import abel
+import platform
 
 
 class SpectAnal(Abel_ne):
@@ -40,10 +41,14 @@ class SpectAnal(Abel_ne):
 
 
     def load_spec_data(self):
+        if(platform.system() == 'Darwin'):
+            path_OS = "/Volumes/"
+        elif(platform.system() == 'Windows'):
+            path_OS = "//spectra/"
         if self.LOCALorPPL == "PPL":
             data = np.zeros((1024, 10))
             for (i, x) in enumerate(self.shotnum):
-                file_path = "/Volumes/C/rt1sp/d" + str(self.date) + "sp/d" + str(self.shotnum[i]) + ".asc"
+                file_path = path_OS + "C/rt1sp/d" + str(self.date) + "sp/d" + str(self.shotnum[i]) + ".asc"
                 data_org = np.loadtxt(file_path)
                 data += data_org[::-1, 1:]
             data /= self.shotnum.__len__()
