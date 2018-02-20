@@ -31,9 +31,12 @@ class SpectAnal(Abel_ne):
 
     def load_spec_data(self):
         if self.LOCALorPPL == "PPL":
-            file_path = "/Volumes/C/rt1sp/d" + str(self.date) + "sp/d" + str(self.shotnum) + ".asc"
-            data_org = np.loadtxt(file_path)
-            data = data_org[::-1, 1:]
+            data = np.zeros((1024, 10))
+            for (i, x) in enumerate(self.shotnum):
+                file_path = "/Volumes/C/rt1sp/d" + str(self.date) + "sp/d" + str(self.shotnum[i]) + ".asc"
+                data_org = np.loadtxt(file_path)
+                data += data_org[::-1, 1:]
+            data /= self.shotnum.__len__()
             wavelength = np.linspace(self.lm0, self.lm0 + self.dlm*1024, 1024)
         elif self.LOCALorPPL == "LOCAL":
             data_org = np.loadtxt(self.file_path, delimiter='\t', skiprows=1)
@@ -434,14 +437,15 @@ class SpectAnal(Abel_ne):
             print('========= r = %5.3f m =========' % sightline_spect[num_pos])
             print('V_%s = %5.3f ± %5.3f m/s' % (Species, V_arr[num_pos], Verr_arr[num_pos]))
 
-        plt.legend()
+        plt.legend(fontsize=8, loc='right')
         plt.xlabel('Wavelength [nm]')
         plt.ylabel('Intensity [a.u.]')
+        plt.ylim(0, 100)
 
         plt.subplot(222)
         plt.plot(sightline_spect, int_arr, '-o', color='green', label=label)
-        plt.legend()
-        plt.title('Date: %d, Shot No.: %d, %s' % (self.date, self.shotnum, label), loc='right', fontsize=20)
+        plt.legend(fontsize=12, loc='best')
+        plt.title('Date: %d, Shot No.: %d-%d, %s' % (self.date, self.shotnum[0], self.shotnum[-1], label), loc='right', fontsize=20)
         #plt.title(label + ', spectr_161206_18to27', loc='right', fontsize=20)
         #plt.title(label + ', 161111#36-44', loc='right', fontsize=20)
         plt.xlabel('r [m]')
@@ -459,6 +463,7 @@ class SpectAnal(Abel_ne):
         plt.ylabel('$V_{%s}$ [m/s]' % Species)
         plt.ylim(-1e4, 1e4)
         plt.tight_layout()
+        plt.subplots_adjust(wspace=0.2)
         plt.show()
 
 
@@ -482,10 +487,10 @@ class SpectAnal(Abel_ne):
 
 
 if __name__ == '__main__':
-    span = SpectAnal(date=20180219, shotNo=40, LOCALorPPL="PPL",
+    span = SpectAnal(date=20180219, shotNo=[40, 41, 42, 43, 44], LOCALorPPL="PPL",
                      instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
     #span.gauss_fitting_HeII(isAbel=False, spline=False, convolve=False)
     #span.gauss_fitting_CIII(isAbel=True, spline=False, convolve=False)
     #span.gauss_fitting_HeI(isAbel=False, spline=False, convolve=False)
-    span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
+    span.gauss_fitting(Species="HeI", isAbel=False, spline=False, convolve=False)
 
