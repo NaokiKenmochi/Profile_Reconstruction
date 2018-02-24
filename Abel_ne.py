@@ -390,7 +390,7 @@ class Abel_ne(sightline_ne):
 
 if __name__ == '__main__':
     abne = Abel_ne()
-    #abne.plot_ne_nel(spline=True)
+    abne.plot_ne_nel(spline=True)
     #abne.abelic_pol(spline=True)
-    abne.abelic_spectroscopy(spline=False, convolve=False)
+    #abne.abelic_spectroscopy(spline=False, convolve=False)
     #abne.abelic_SX(spline=True)
