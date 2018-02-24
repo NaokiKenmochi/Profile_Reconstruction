@@ -16,11 +16,11 @@ import platform
 
 class SpectAnal(Abel_ne):
 
-    def __init__(self, date, shotNo, LOCALorPPL, instwid, lm0, dlm, opp_ch):
+    def __init__(self, date, arr_shotNo, LOCALorPPL, instwid, lm0, dlm, opp_ch):
         """
 
         :param date: 解析対象の実験日
-        :param shotNo: 解析対象のショット番号（array）．複数選択すると積算したデータを解析する．
+        :param arr_shotNo: 解析対象のショット番号（array）．複数選択すると積算したデータを解析する．
         :param LOCALorPPL: "LOCAL": ローカルに保存してあるデータを解析．"PPL": PPLサーバー(PC: spcectra）に保存してあるデータを解析
         :param instwid: 分光器の較正データを使用
         :param lm0:  分光器の較正データを使用
@@ -28,7 +28,7 @@ class SpectAnal(Abel_ne):
         :param opp_ch: 対向チャンネルを指定
         """
         self.date = date
-        self.shotnum = shotNo
+        self.arr_shotnum = arr_shotNo
         self.LOCALorPPL = LOCALorPPL
         self.file_path = "/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/Spectroscopy/d20161206sp/spectr_161206_18to27.txt"
         #self.instwid = 0.025129
@@ -47,11 +47,11 @@ class SpectAnal(Abel_ne):
             path_OS = "//spectra/"
         if self.LOCALorPPL == "PPL":
             data = np.zeros((1024, 10))
-            for (i, x) in enumerate(self.shotnum):
-                file_path = path_OS + "C/rt1sp/d" + str(self.date) + "sp/d" + str(self.shotnum[i]) + ".asc"
+            for (i, x) in enumerate(self.arr_shotnum):
+                file_path = path_OS + "C/rt1sp/d" + str(self.date) + "sp/d" + str(self.arr_shotnum[i]) + ".asc"
                 data_org = np.loadtxt(file_path)
                 data += data_org[::-1, 1:]
-            data /= self.shotnum.__len__()
+            data /= self.arr_shotnum.__len__()
             wavelength = np.linspace(self.lm0, self.lm0 + self.dlm*1024, 1024)
         elif self.LOCALorPPL == "LOCAL":
             data_org = np.loadtxt(self.file_path, delimiter='\t', skiprows=1)
@@ -220,7 +220,7 @@ class SpectAnal(Abel_ne):
         plt.subplot(222)
         plt.plot(sightline_spect, int_arr, '-o', color='green', label=label)
         plt.legend(fontsize=12, loc='best')
-        plt.title('Date: %d, Shot No.: %d-%d, %s' % (self.date, self.shotnum[0], self.shotnum[-1], label), loc='right', fontsize=20)
+        plt.title('Date: %d, Shot No.: %d-%d, %s' % (self.date, self.arr_shotnum[0], self.arr_shotnum[-1], label), loc='right', fontsize=20)
         #plt.title(label + ', spectr_161206_18to27', loc='right', fontsize=20)
         plt.xlabel('r [m]')
         plt.ylabel('Intensity of HeII [a.u.]')
@@ -261,7 +261,7 @@ class SpectAnal(Abel_ne):
 
 
 if __name__ == '__main__':
-    span = SpectAnal(date=20180219, shotNo=[40, 41, 42, 43, 44], LOCALorPPL="PPL",
+    span = SpectAnal(date=20180220, arr_shotNo=[56, 57], LOCALorPPL="PPL",
                      instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
     span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
 
