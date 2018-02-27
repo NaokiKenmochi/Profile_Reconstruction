@@ -367,21 +367,22 @@ class Abel_ne(sightline_ne):
         #plt.show()
         return ne, rs, rr, ne_profile_z0, nl_y_ori
 
-    def abelic_pol_stft(self, spline=False):
+    def abelic_pol_stft(self, spline=False, abel=True):
         """
         390nm, 730nm, 710nm, 450nmの順で格納
         390nm, 450nmの比を用いて電子密度を計算
         730nm, 710nmの比を用いて電子温度を計算
         """
         vmin = 0.0
-        vmax = 1e-9
+        #vmax = 1e-9
         #vmax = 3e-7
-        NPERSEG = 2**9
-        time_offset = 0.0
+        vmax = 3e-7
         time_offset_stft = 0.0
 
         file_path = '/Users/kemmochi/PycharmProjects/RT1DataBrowser/'
-        file_name = "Pol_stft_20180223_87to101.npz"
+        #file_name = "Pol_stft_20180223_87to101.npz"
+        #file_name = "Pol_ratio_stft_20180223_87to101.npz"
+        file_name = "Pol_ratio_woffset_stft_20180223_87to101.npz"
         data_buf = np.load(file_path + file_name)
 
         r_pol = data_buf["r_pol"]
@@ -393,47 +394,37 @@ class Abel_ne(sightline_ne):
             pass
 
         Zxx_4D_local = np.zeros(np.shape(Zxx_4D))
-        for i_time in range(t.__len__()):
-            for i_ch in range(4):
-                Zxx_4D_local[:, i_time, i_ch, :] = self.abelic_uneven_dr(np.abs(Zxx_4D[:, i_time, i_ch, :]), r_pol)
+        if(abel == True):
+            for i_time in range(t.__len__()):
+                for i_ch in range(np.shape(Zxx_4D)[2]):
+                    #Zxx_4D_local[:, i_time, i_ch, :] = self.abelic_uneven_dr(np.abs(Zxx_4D[:, i_time, i_ch, :]), r_pol)
+                    Zxx_4D_local[:, i_time, i_ch, :] = self.abelic_uneven_dr(Zxx_4D[:, i_time, i_ch, :], r_pol)
 
-        Zxx_4D_local = Zxx_4D
-
-        #plt.figure(figsize=(16, 5))
-        #gs = gridspec.GridSpec(4, 4)
-        #gs.update(hspace=0.4, wspace=0.3)
-        #for i in range(4):
-        #    ax0 = plt.subplot(gs[0:3, i])
-        #    plt.pcolormesh(t + time_offset_stft, f, Zxx_4D_local[:, :, i, num_r], vmin=vmin, vmax=vmax)
-        #    sfmt=matplotlib.ticker.ScalarFormatter(useMathText=True)
-        #    cbar = plt.colorbar(format=sfmt)
-        #    cbar.ax.tick_params(labelsize=12)
-        #    cbar.formatter.set_powerlimits((0, 0))
-        #    cbar.update_ticks()
-        #    ax0.set_xlabel("Time [sec]")
-        #    ax0.set_ylabel("Frequency of POL(Local)%d at r=%dmm [Hz]" % (i+1, r_pol[num_r]))
-        #    ax0.set_xlim(0.5, 2.5)
-        #    ax0.set_ylim([0, 2000])
-        #    if(i==3):
-        #        plt.title("%s" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
+        else:
+            Zxx_4D_local = Zxx_4D
 
         plt.figure(figsize=(20, 16))
-        gs = gridspec.GridSpec(9, 4)
-        gs.update(hspace=0.4, wspace=0.3)
+        gs = gridspec.GridSpec(9, np.shape(Zxx_4D)[2])
+        gs.update(hspace=0.1, wspace=0.1)
         for i_r in range(r_pol.__len__()):
-            for i_wl in range(4):
+            for i_wl in range(np.shape(Zxx_4D)[2]):
                 ax0 = plt.subplot(gs[i_r, i_wl])
-                plt.pcolormesh(t + time_offset_stft, f, Zxx_4D_local[:, :, i_wl, i_r], vmin=vmin, vmax=vmax)
+                #plt.pcolormesh(t + time_offset_stft, f, Zxx_4D_local[:, :, i_wl, i_r], vmin=vmin, vmax=vmax)
+                plt.pcolormesh(t + time_offset_stft, f, np.abs(Zxx_4D_local[:, :, i_wl, i_r]), vmin=vmin, vmax=vmax)
                 sfmt=matplotlib.ticker.ScalarFormatter(useMathText=True)
-                cbar = plt.colorbar(format=sfmt)
-                cbar.ax.tick_params(labelsize=12)
-                cbar.formatter.set_powerlimits((0, 0))
-                cbar.update_ticks()
-                ax0.set_xlabel("Time [sec]")
+                if(i_wl == np.shape(Zxx_4D)[2]-1):
+                    cbar = plt.colorbar(format=sfmt)
+                    cbar.ax.tick_params(labelsize=12)
+                    cbar.formatter.set_powerlimits((0, 0))
+                    cbar.update_ticks()
+                if(i_r == r_pol.__len__()-1):
+                    ax0.set_xlabel("Time [sec]")
+                elif(i_r != r_pol.__len__()-1):
+                    ax0.tick_params(labelbottom=False)
                 ax0.set_ylabel("r=%dmm[Hz]" % (r_pol[i_r]))
                 ax0.set_xlim(0.5, 2.5)
                 ax0.set_ylim([0, 2000])
-                if(i_wl==3 and i_r==0):
+                if(i_wl==np.shape(Zxx_4D)[2]-1 and i_r==0):
                     plt.title("%s" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
         plt.show()
 
@@ -464,6 +455,6 @@ if __name__ == '__main__':
     abne = Abel_ne()
     #abne.plot_ne_nel(spline=True)
     #abne.abelic_pol(spline=True)
-    abne.abelic_pol_stft(spline=True)
+    abne.abelic_pol_stft(spline=True, abel=False)
     #abne.abelic_spectroscopy(spline=False, convolve=False)
     #abne.abelic_SX(spline=True)
