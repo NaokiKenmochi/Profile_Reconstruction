@@ -98,6 +98,7 @@ class Abel_ne(sightline_ne):
         if(nl.ndim == 1):
             n = np.linalg.solve(A, nl)
         else:
+            #n = np.zeros(nl.shape, dtype=complex)
             n = np.zeros(nl.shape)
             for i in range(nl.__len__()):
                 n[i, :] = np.linalg.solve(A, nl[i, :])  #for文を回さず同じ動作をさせたい
@@ -374,15 +375,18 @@ class Abel_ne(sightline_ne):
         730nm, 710nmの比を用いて電子温度を計算
         """
         vmin = 0.0
-        #vmax = 1e-9
+        vmax = 5e-5
+        #vmax = 5e-10
         #vmax = 3e-7
-        vmax = 3e-7
         time_offset_stft = 0.0
 
         file_path = '/Users/kemmochi/PycharmProjects/RT1DataBrowser/'
         #file_name = "Pol_stft_20180223_87to101.npz"
         #file_name = "Pol_ratio_stft_20180223_87to101.npz"
-        file_name = "Pol_ratio_woffset_stft_20180223_87to101.npz"
+        #file_name = "Pol_ratio_woffset_stft_complex_20180223_87to101.npz"
+        #file_name = "Pol_ratio_woffset_stft_20180223_87to101.npz"
+        #file_name = "Pol_ratio_woffset_stft_20171223_80to75.npz"
+        file_name = "Pol_woffset_stft_20171223_80to75.npz"
         data_buf = np.load(file_path + file_name)
 
         r_pol = data_buf["r_pol"]
@@ -393,6 +397,7 @@ class Abel_ne(sightline_ne):
         if(spline == True):
             pass
 
+        #Zxx_4D_local = np.zeros(np.shape(Zxx_4D), dtype=complex)
         Zxx_4D_local = np.zeros(np.shape(Zxx_4D))
         if(abel == True):
             for i_time in range(t.__len__()):
@@ -403,29 +408,34 @@ class Abel_ne(sightline_ne):
         else:
             Zxx_4D_local = Zxx_4D
 
-        plt.figure(figsize=(20, 16))
+        #plt.plot(r_pol, np.abs(Zxx_4D_local[12, 60, 0, :]))
+        #plt.plot(r_pol, np.abs(Zxx_4D_local[12, 60, 1, :]))
+        #plt.show()
+
+        #plt.figure(figsize=(20, 16))
+        fig, axes = plt.subplots(nrows=r_pol.__len__(), ncols=np.shape(Zxx_4D)[2], figsize=(20, 16))
         gs = gridspec.GridSpec(9, np.shape(Zxx_4D)[2])
-        gs.update(hspace=0.1, wspace=0.1)
+        gs.update(hspace=0.1, wspace=0.15)
         for i_r in range(r_pol.__len__()):
             for i_wl in range(np.shape(Zxx_4D)[2]):
                 ax0 = plt.subplot(gs[i_r, i_wl])
-                #plt.pcolormesh(t + time_offset_stft, f, Zxx_4D_local[:, :, i_wl, i_r], vmin=vmin, vmax=vmax)
-                plt.pcolormesh(t + time_offset_stft, f, np.abs(Zxx_4D_local[:, :, i_wl, i_r]), vmin=vmin, vmax=vmax)
-                sfmt=matplotlib.ticker.ScalarFormatter(useMathText=True)
-                if(i_wl == np.shape(Zxx_4D)[2]-1):
-                    cbar = plt.colorbar(format=sfmt)
-                    cbar.ax.tick_params(labelsize=12)
-                    cbar.formatter.set_powerlimits((0, 0))
-                    cbar.update_ticks()
+                im = plt.pcolormesh(t + time_offset_stft, f, np.abs(Zxx_4D_local[:, :, i_wl, i_r]), vmin=vmin, vmax=vmax)
                 if(i_r == r_pol.__len__()-1):
                     ax0.set_xlabel("Time [sec]")
                 elif(i_r != r_pol.__len__()-1):
                     ax0.tick_params(labelbottom=False)
-                ax0.set_ylabel("r=%dmm[Hz]" % (r_pol[i_r]))
+                ax0.set_ylabel("r=%dmm\nFreq. [Hz]" % (r_pol[i_r]))
                 ax0.set_xlim(0.5, 2.5)
                 ax0.set_ylim([0, 2000])
                 if(i_wl==np.shape(Zxx_4D)[2]-1 and i_r==0):
                     plt.title("%s" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
+                    #plt.title("Abel Inversion, %s\n447/388 (ne sensitive)" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
+                    #plt.title("%s\n447/388 (ne sensitive)" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
+                #if(i_wl==0 and i_r==0):
+                #    plt.title("728/706 (Te sensitive)", loc='right', fontsize=20, fontname="Times New Roman")
+        fig.subplots_adjust(right=0.9)
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+        fig.colorbar(im, cax=cbar_ax)
         plt.show()
 
     def plot_ne_nel(self, spline=False):

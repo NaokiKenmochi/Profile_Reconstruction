@@ -104,7 +104,7 @@ class SpectAnal(Abel_ne):
         return k0 + k1*np.exp(-k2*x)
 
 
-    def gauss_fitting(self, Species, isAbel=False, spline=False, convolve=False):
+    def gauss_fitting(self, Species, isAbel=False, spline=False, convolve=False, isPLOT=True):
         bounds_st = np.array([471.2, 468.45, 464.6])    #[HeI, HeII, CIII]
         bounds_ed = np.array([471.5, 468.65, 464.83])    #[HeI, HeII, CIII]
         T_arr = np.array([])
@@ -125,14 +125,15 @@ class SpectAnal(Abel_ne):
             sightline_spect = np.arange(10)
             label = 'Line-Integrated'
 
-        plt.figure(figsize=(12, 8))
-        plt.subplot(221)
+        #TODO   Igor(Procedure_common.ipf)内のint_ratioを適用する必要があるのか要確認
+        if(isPLOT==True):
+            plt.figure(figsize=(12, 8))
+            plt.subplot(221)
 
         for (num_pos, x) in enumerate(sightline_spect):
             if(Species=="HeI"):
                 init_values = np.array([10, 500, 471.31457, 0.01])
                 popt, pcov = curve_fit(self.gauss, wavelength, data[:, num_pos], p0=init_values)
-                plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
                 sigma = np.sqrt(np.diag(pcov))
                 #TODO Errorの値が大きく出ている？　要確認
                 T = 469000000*4*(np.sqrt(popt[3]**2 - self.instwid**2)/471.31457)**2
@@ -159,7 +160,6 @@ class SpectAnal(Abel_ne):
                 init_values = np.array([10, 500, 464.742, 0.01])
                 popt_0, pcov_0 = curve_fit(self.gauss, wavelength, data[:, num_pos], p0=init_values)
 
-                plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
                 #In IgorPro #ToDo Igorとの違いを確認
                 #$("W_" + chstr)	 ={$wr[pcsrA], wavemax($wr, xcsrA, xcsrB) - $wr[pcsrA], 464.742, W_coef[2] - 464.742, W_coef[3]}
                 init_values_2 = np.array([popt_0[0], popt_0[1], popt_0[2]-464.742, popt_0[3]])
@@ -192,18 +192,19 @@ class SpectAnal(Abel_ne):
             print('%s_int = %5.3f' % (Species, int))
             print('%sdx = %5.3f' % (Species, dx))
 
-            plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
-            if(Species=="HeI"):
-                plt.plot(wavelength, self.gauss(wavelength, *popt), '-o',
-                         label='gauss fitting(r=%5.3fm' % sightline_spect[num_pos])
-                plt.xlim(471.1342, 471.49935)
-            elif(Species=="HeII"):
-                plt.plot(wavelength, self.HefitverS_const_wl(wavelength, *popt), '-o', label='gauss fitting(r=%5.3fm' % sightline_spect[num_pos])
-                plt.xlim(468.2, 469.0)
-            elif(Species=="CIII"):
-                plt.plot(wavelength, self.accurategauss(wavelength, popt_0[0], popt_0[1], 464.742, popt_0[2]-464.742, popt_0[3]), '-o',
-                         label='accurategauss fitting(r=%5.3fm' % sightline_spect[num_pos])
-                plt.xlim(464.4, 465.2)
+            if(isPLOT==True):
+                plt.plot(wavelength, data[:, num_pos], label='r=%5.3f' % sightline_spect[num_pos])
+                if(Species=="HeI"):
+                    plt.plot(wavelength, self.gauss(wavelength, *popt), '-o',
+                             label='gauss fitting(r=%5.3fm' % sightline_spect[num_pos])
+                    plt.xlim(471.1342, 471.49935)
+                elif(Species=="HeII"):
+                    plt.plot(wavelength, self.HefitverS_const_wl(wavelength, *popt), '-o', label='gauss fitting(r=%5.3fm' % sightline_spect[num_pos])
+                    plt.xlim(468.2, 469.0)
+                elif(Species=="CIII"):
+                    plt.plot(wavelength, self.accurategauss(wavelength, popt_0[0], popt_0[1], 464.742, popt_0[2]-464.742, popt_0[3]), '-o',
+                             label='accurategauss fitting(r=%5.3fm' % sightline_spect[num_pos])
+                    plt.xlim(464.4, 465.2)
         DXCENT = (dx_arr[self.opp_ch[0]-1]+dx_arr[self.opp_ch[1]-1])/2.0
         print('Center of %sdx: %5.3f' % (Species, DXCENT))
         for (num_pos, x) in enumerate(sightline_spect):
@@ -212,33 +213,36 @@ class SpectAnal(Abel_ne):
             print('========= r = %5.3f m =========' % sightline_spect[num_pos])
             print('V_%s(Calib.) = %5.3f ± %5.3f m/s' % (Species, V_arr[num_pos], Verr_arr[num_pos]))
 
-        plt.legend(fontsize=8, loc='right')
-        plt.xlabel('Wavelength [nm]')
-        plt.ylabel('Intensity [a.u.]')
-        plt.ylim(0, 100)
+        if(isPLOT==True):
+            plt.legend(fontsize=8, loc='right')
+            plt.xlabel('Wavelength [nm]')
+            plt.ylabel('Intensity [a.u.]')
+            plt.ylim(0, 100)
 
-        plt.subplot(222)
-        plt.plot(sightline_spect, int_arr, '-o', color='green', label=label)
-        plt.legend(fontsize=12, loc='best')
-        plt.title('Date: %d, Shot No.: %d-%d, %s' % (self.date, self.arr_shotnum[0], self.arr_shotnum[-1], label), loc='right', fontsize=20)
-        #plt.title(label + ', spectr_161206_18to27', loc='right', fontsize=20)
-        plt.xlabel('r [m]')
-        plt.ylabel('Intensity of HeII [a.u.]')
+            plt.subplot(222)
+            plt.plot(sightline_spect, int_arr, '-o', color='green', label=label)
+            plt.legend(fontsize=12, loc='best')
+            plt.title('Date: %d, Shot No.: %d-%d, %s' % (self.date, self.arr_shotnum[0], self.arr_shotnum[-1], label), loc='right', fontsize=20)
+            #plt.title(label + ', spectr_161206_18to27', loc='right', fontsize=20)
+            plt.xlabel('r [m]')
+            plt.ylabel('Intensity of %s [a.u.]' % Species)
 
-        plt.subplot(223)
-        plt.errorbar(sightline_spect, T_arr, yerr=Terr_arr, fmt='ro')
-        plt.xlabel('r [m]')
-        plt.ylabel('$T_{%s}$ [eV]' % Species)
-        plt.ylim(0, 20)
+            plt.subplot(223)
+            plt.errorbar(sightline_spect, T_arr, yerr=Terr_arr, fmt='ro')
+            plt.xlabel('r [m]')
+            plt.ylabel('$T_{%s}$ [eV]' % Species)
+            plt.ylim(0, 20)
 
-        plt.subplot(224)
-        plt.errorbar(sightline_spect, V_arr, yerr=Verr_arr, fmt='bo')
-        plt.xlabel('r [m]')
-        plt.ylabel('$V_{%s}$ [m/s]' % Species)
-        plt.ylim(-1e4, 1e4)
-        plt.tight_layout()
-        plt.subplots_adjust(wspace=0.2)
-        plt.show()
+            plt.subplot(224)
+            plt.errorbar(sightline_spect, V_arr, yerr=Verr_arr, fmt='bo')
+            plt.xlabel('r [m]')
+            plt.ylabel('$V_{%s}$ [m/s]' % Species)
+            plt.ylim(-1e4, 1e4)
+            plt.tight_layout()
+            plt.subplots_adjust(wspace=0.2)
+            plt.show()
+
+        return T_arr, Terr_arr, V_arr, Verr_arr, int_arr, data, wavelength
 
 
     def modify_center_for_V(self, dx, dxcent, Species):
@@ -258,10 +262,74 @@ class SpectAnal(Abel_ne):
 
         return V
 
+def make_profile(ch, Species):
+    label = 'Line-Integrated'
+    arr_shotnum = np.array([31, 32, 33, 34, 35])
+    arr_sightline = np.array([379, 484, 583, 689, 820])
+
+    T_rarr = np.array([])
+    Terr_rarr = np.array([[]])
+    V_rarr = np.array([])
+    Verr_rarr = np.array([])
+    int_rarr = np.array([])
+    data_r = np.array([])
+
+    plt.figure(figsize=(12, 8))
+    plt.subplot(221)
+
+    for i, shotnum in enumerate(arr_shotnum):
+        span = SpectAnal(date=20171111, arr_shotNo=[shotnum], LOCALorPPL="PPL",
+                         instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
+        T_arr, Terr_arr, V_arr, Verr_arr, int_arr, data, wavelength = span.gauss_fitting(Species=Species, isAbel=False,
+                                                                                         spline=False, convolve=False, isPLOT=False)
+        T_rarr = np.append(T_rarr, T_arr[ch])
+        Terr_rarr = np.append(Terr_rarr, Terr_arr[ch])
+        V_rarr = np.append(V_rarr, V_arr[ch])
+        Verr_rarr = np.append(Verr_rarr, Verr_arr[ch])
+        int_rarr = np.append(int_rarr, int_arr[ch])
+        data_r = np.append(data_r, data[:, ch])
+        if(Species=="HeI"):
+            plt.xlim(471.1342, 471.49935)
+        elif(Species=="HeII"):
+            plt.xlim(468.2, 469.0)
+        elif(Species=="CIII"):
+            plt.xlim(464.4, 465.2)
+        plt.plot(wavelength, data[:, i], label='r=%5.3f' % arr_sightline[i])
+
+
+    plt.legend(fontsize=8, loc='right')
+    plt.xlabel('Wavelength [nm]')
+    plt.ylabel('Intensity [a.u.]')
+    plt.ylim(0, 100)
+
+    plt.subplot(222)
+    plt.plot(arr_sightline, int_rarr, '-o', color='green', label=label)
+    plt.legend(fontsize=12, loc='best')
+    #plt.title('Date: %d, Shot No.: %d-%d, %s' % (self.date, self.arr_shotnum[0], self.arr_shotnum[-1], label), loc='right', fontsize=20)
+    plt.xlabel('r [m]')
+    plt.ylabel('Intensity of %s [a.u.]' % Species)
+
+    plt.subplot(223)
+    plt.errorbar(arr_sightline, T_rarr, yerr=Terr_rarr, fmt='ro')
+    plt.xlabel('r [m]')
+    plt.ylabel('$T_{%s}$ [eV]' % Species)
+    plt.ylim(0, 20)
+
+    plt.subplot(224)
+    plt.errorbar(arr_sightline, V_rarr, yerr=Verr_rarr, fmt='bo')
+    plt.xlabel('r [m]')
+    plt.ylabel('$V_{%s}$ [m/s]' % Species)
+    plt.ylim(-1e4, 1e4)
+    plt.tight_layout()
+    plt.subplots_adjust(wspace=0.2)
+    plt.show()
+
 
 
 if __name__ == '__main__':
-    span = SpectAnal(date=20180220, arr_shotNo=[56, 57], LOCALorPPL="PPL",
-                     instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
-    span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
+    #span = SpectAnal(date=20171111, arr_shotNo=[34], LOCALorPPL="PPL",
+    #                 #instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
+    #                 instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
+    #span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
+    make_profile(ch=8, Species="HeII")
 
