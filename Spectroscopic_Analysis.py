@@ -104,7 +104,7 @@ class SpectAnal(Abel_ne):
         return k0 + k1*np.exp(-k2*x)
 
 
-    def gauss_fitting(self, Species, isAbel=False, spline=False, convolve=False, isPLOT=True):
+    def gauss_fitting(self, Species, isAbel=False, spline=False, convolve=False, isPLOT=True, is1CH=False):
         bounds_st = np.array([471.2, 468.45, 464.6])    #[HeI, HeII, CIII]
         bounds_ed = np.array([471.5, 468.65, 464.83])    #[HeI, HeII, CIII]
         T_arr = np.array([])
@@ -135,53 +135,59 @@ class SpectAnal(Abel_ne):
             plt.subplot(221)
 
         for (num_pos, x) in enumerate(sightline_spect):
-            if(Species=="HeI"):
-                init_values = np.array([10, 500, 471.31457, 0.01])
-                popt, pcov = curve_fit(self.gauss, wavelength, data[:, num_pos], p0=init_values)
-                sigma = np.sqrt(np.diag(pcov))
-                #TODO Errorの値が大きく出ている？　要確認
-                T = 469000000*4*(np.sqrt(popt[3]**2 - self.instwid**2)/471.31457)**2
-                Terr = 469000000*4*(np.sqrt((np.abs(popt[3]) + np.abs(sigma[3]))**2 - self.instwid**2)/471.31457)**2 - T
-                dx = popt[2]+sigma[2]-471.31457
-                int = integrate.quad(self.gauss, bounds_st[0], bounds_ed[0],
-                                     args=(popt[0], popt[1], popt[2], popt[3]))[0] - popt[0]*(bounds_ed[0]-bounds_st[0])
-                V = 0.0
-                Verr = 0.0
+            try:
+                if(Species=="HeI"):
+                    init_values = np.array([10, 500, 471.31457, 0.01])
+                    popt, pcov = curve_fit(self.gauss, wavelength, data[:, num_pos], p0=init_values)
+                    sigma = np.sqrt(np.diag(pcov))
+                    #TODO Errorの値が大きく出ている？　要確認
+                    T = 469000000*4*(np.sqrt(popt[3]**2 - self.instwid**2)/471.31457)**2
+                    Terr = 469000000*4*(np.sqrt((np.abs(popt[3]) + np.abs(sigma[3]))**2 - self.instwid**2)/471.31457)**2 - T
+                    dx = popt[2]+sigma[2]-471.31457
+                    int = integrate.quad(self.gauss, bounds_st[0], bounds_ed[0],
+                                         args=(popt[0], popt[1], popt[2], popt[3]))[0] - popt[0]*(bounds_ed[0]-bounds_st[0])
+                    V = 0.0
+                    Verr = 0.0
 
-            elif(Species=="HeII"):
-                init_values = np.array([10, 40, 0, 0.01])
-                popt, pcov = curve_fit(self.HefitverS_const_wl, wavelength, data[:, num_pos], p0=init_values)
-                sigma = np.sqrt(np.diag(pcov))
-                T = 469000000*4*(np.sqrt(popt[3]**2 - self.instwid**2)/468.565)**2
-                Terr = 469000000*4*(np.sqrt((np.abs(popt[3]) + np.abs(sigma[3]))**2 - self.instwid**2)/468.565)**2 - T
-                dx = popt[2]
-                V = 299800000*dx/468.565
-                Verr = 299800000*sigma[2]/468.565
-                int = integrate.quad(self.HefitverS_const_wl, bounds_st[1], bounds_ed[1],
-                                       args=(popt[0], popt[1], popt[2], popt[3]))[0] - popt[0]*(bounds_ed[1]-bounds_st[1])
+                elif(Species=="HeII"):
+                    init_values = np.array([10, 40, 0, 0.01])
+                    popt, pcov = curve_fit(self.HefitverS_const_wl, wavelength, data[:, num_pos], p0=init_values)
+                    sigma = np.sqrt(np.diag(pcov))
+                    T = 469000000*4*(np.sqrt(popt[3]**2 - self.instwid**2)/468.565)**2
+                    Terr = 469000000*4*(np.sqrt((np.abs(popt[3]) + np.abs(sigma[3]))**2 - self.instwid**2)/468.565)**2 - T
+                    dx = popt[2]
+                    V = 299800000*dx/468.565
+                    Verr = 299800000*sigma[2]/468.565
+                    int = integrate.quad(self.HefitverS_const_wl, bounds_st[1], bounds_ed[1],
+                                         args=(popt[0], popt[1], popt[2], popt[3]))[0] - popt[0]*(bounds_ed[1]-bounds_st[1])
 
-            elif(Species=="CIII"):
-                init_values = np.array([10, 500, 464.742, 0.01])
-                popt_0, pcov_0 = curve_fit(self.gauss, wavelength, data[:, num_pos], p0=init_values)
+                elif(Species=="CIII"):
+                    init_values = np.array([10, 500, 464.742, 0.01])
+                    popt_0, pcov_0 = curve_fit(self.gauss, wavelength, data[:, num_pos], p0=init_values)
 
-                #In IgorPro #ToDo Igorとの違いを確認
-                #$("W_" + chstr)	 ={$wr[pcsrA], wavemax($wr, xcsrA, xcsrB) - $wr[pcsrA], 464.742, W_coef[2] - 464.742, W_coef[3]}
-                init_values_2 = np.array([popt_0[0], popt_0[1], popt_0[2]-464.742, popt_0[3]])
-                popt, pcov = curve_fit(lambda wavelength, k0, k1, k3, k4: self.accurategauss(wavelength, k0, k1, 464.742, k3, k4),
-                                       wavelength, data[:, num_pos], p0=init_values_2)
-                popt = np.insert(popt, 2, init_values[2])
-                sigma = np.sqrt(np.diag(pcov))
-                T = 469000000*12*(np.sqrt(popt[4]**2 - self.instwid**2)/464.742)**2
-                Terr = 469000000*12*(np.sqrt((np.abs(popt[4]) + np.abs(sigma[3]))**2 - self.instwid**2)/464.742)**2 - T
-                dx = popt[3]
-                V = 299800000*dx/464.742
-                Verr = 299800000*sigma[2]/464.742
-                int = integrate.quad(self.accurategauss, bounds_st[2], bounds_ed[2],
-                                  args=(popt[0], popt[1], popt[2], popt[3], popt[4]))[0] - popt[0]*(bounds_ed[2]-bounds_st[2])
-            else:
-                print("Enter 'HeI', 'HeII', or 'CIII'")
-                return
+                    #In IgorPro #ToDo Igorとの違いを確認
+                    #$("W_" + chstr)	 ={$wr[pcsrA], wavemax($wr, xcsrA, xcsrB) - $wr[pcsrA], 464.742, W_coef[2] - 464.742, W_coef[3]}
+                    init_values_2 = np.array([popt_0[0], popt_0[1], popt_0[2]-464.742, popt_0[3]])
+                    popt, pcov = curve_fit(lambda wavelength, k0, k1, k3, k4: self.accurategauss(wavelength, k0, k1, 464.742, k3, k4),
+                                           wavelength, data[:, num_pos], p0=init_values_2)
+                    popt = np.insert(popt, 2, init_values[2])
+                    sigma = np.sqrt(np.diag(pcov))
+                    T = 469000000*12*(np.sqrt(popt[4]**2 - self.instwid**2)/464.742)**2
+                    Terr = 469000000*12*(np.sqrt((np.abs(popt[4]) + np.abs(sigma[3]))**2 - self.instwid**2)/464.742)**2 - T
+                    dx = popt[3]
+                    V = 299800000*dx/464.742
+                    Verr = 299800000*sigma[2]/464.742
+                    int = integrate.quad(self.accurategauss, bounds_st[2], bounds_ed[2],
+                                      args=(popt[0], popt[1], popt[2], popt[3], popt[4]))[0] - popt[0]*(bounds_ed[2]-bounds_st[2])
+                else:
+                    print("Enter 'HeI', 'HeII', or 'CIII'")
+                    return
 
+            except Exception as e:
+                print("!!!!!!!!!!!!!!!!! ERROR in ch.%d !!!!!!!!!!!!!!!!!!!!" % num_pos)
+                print(e.args)
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                T = Terr = V = Verr = int = np.nan
 
             T_arr = np.append(T_arr, T)
             Terr_arr = np.append(Terr_arr, Terr)
@@ -270,8 +276,8 @@ def make_profile(date, ch, Species):
     label = 'Line-Integrated'
     #arr_shotnum = np.array([31, 32, 33, 34, 35])
     #arr_sightline = np.array([379, 484, 583, 689, 820])
-    arr_shotnum = np.arange(68, 80)#81)
-    arr_sightline = 1e-3*np.array([422, 475, 526, 576, 623, 667, 709, 785, 785, 667, 576, 475])#, 385])
+    arr_shotnum = np.arange(68, 81)
+    arr_sightline = 1e-3*np.array([422, 475, 526, 576, 623, 667, 709, 785, 785, 667, 576, 475, 385])
 
     T_rarr = np.array([])
     Terr_rarr = np.array([[]])
@@ -334,10 +340,10 @@ def make_profile(date, ch, Species):
 
 
 if __name__ == '__main__':
-    span = SpectAnal(date=20171223, arr_shotNo=[80], LOCALorPPL="PPL",
-                     #instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
-                     #instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
-                     instwid=0.017867, lm0=462.235, dlm=0.0122165, opp_ch=[5, 6])   #19-23 Dec. 2017
-    span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
-    #make_profile(date=20171223, ch=1, Species="HeII")
+    #span = SpectAnal(date=20171223, arr_shotNo=[80], LOCALorPPL="PPL",
+    #                 #instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
+    #                 #instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
+    #                 instwid=0.017867, lm0=462.235, dlm=0.0122165, opp_ch=[5, 6])   #19-23 Dec. 2017
+    #span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
+    make_profile(date=20171223, ch=1, Species="HeII")
 
