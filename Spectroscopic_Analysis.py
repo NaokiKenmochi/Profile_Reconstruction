@@ -125,6 +125,10 @@ class SpectAnal(Abel_ne):
             sightline_spect = np.arange(10)
             label = 'Line-Integrated'
 
+        #dataからオフセットを差し引く
+        offset_data = np.average(data[:50, :], axis=0)
+        data -= offset_data
+
         #TODO   Igor(Procedure_common.ipf)内のint_ratioを適用する必要があるのか要確認
         if(isPLOT==True):
             plt.figure(figsize=(12, 8))
@@ -262,10 +266,12 @@ class SpectAnal(Abel_ne):
 
         return V
 
-def make_profile(ch, Species):
+def make_profile(date, ch, Species):
     label = 'Line-Integrated'
-    arr_shotnum = np.array([31, 32, 33, 34, 35])
-    arr_sightline = np.array([379, 484, 583, 689, 820])
+    #arr_shotnum = np.array([31, 32, 33, 34, 35])
+    #arr_sightline = np.array([379, 484, 583, 689, 820])
+    arr_shotnum = np.arange(68, 80)#81)
+    arr_sightline = 1e-3*np.array([422, 475, 526, 576, 623, 667, 709, 785, 785, 667, 576, 475])#, 385])
 
     T_rarr = np.array([])
     Terr_rarr = np.array([[]])
@@ -278,8 +284,9 @@ def make_profile(ch, Species):
     plt.subplot(221)
 
     for i, shotnum in enumerate(arr_shotnum):
-        span = SpectAnal(date=20171111, arr_shotNo=[shotnum], LOCALorPPL="PPL",
-                         instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
+        span = SpectAnal(date=date, arr_shotNo=[shotnum], LOCALorPPL="PPL",
+                         #instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
+                         instwid=0.017867, lm0=462.235, dlm=0.0122165, opp_ch=[5, 6])   #19-23 Dec. 2017
         T_arr, Terr_arr, V_arr, Verr_arr, int_arr, data, wavelength = span.gauss_fitting(Species=Species, isAbel=False,
                                                                                          spline=False, convolve=False, isPLOT=False)
         T_rarr = np.append(T_rarr, T_arr[ch])
@@ -294,7 +301,7 @@ def make_profile(ch, Species):
             plt.xlim(468.2, 469.0)
         elif(Species=="CIII"):
             plt.xlim(464.4, 465.2)
-        plt.plot(wavelength, data[:, i], label='r=%5.3f' % arr_sightline[i])
+        plt.plot(wavelength, data[:, ch], label='r=%5.3f' % arr_sightline[i])
 
 
     plt.legend(fontsize=8, loc='right')
@@ -305,7 +312,7 @@ def make_profile(ch, Species):
     plt.subplot(222)
     plt.plot(arr_sightline, int_rarr, '-o', color='green', label=label)
     plt.legend(fontsize=12, loc='best')
-    #plt.title('Date: %d, Shot No.: %d-%d, %s' % (self.date, self.arr_shotnum[0], self.arr_shotnum[-1], label), loc='right', fontsize=20)
+    plt.title('Date: %d, Shot No.: %d-%d, %s' % (date, arr_shotnum[0], arr_shotnum[-1], label), loc='right', fontsize=20)
     plt.xlabel('r [m]')
     plt.ylabel('Intensity of %s [a.u.]' % Species)
 
@@ -327,9 +334,10 @@ def make_profile(ch, Species):
 
 
 if __name__ == '__main__':
-    #span = SpectAnal(date=20171111, arr_shotNo=[34], LOCALorPPL="PPL",
-    #                 #instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
-    #                 instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
-    #span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
-    make_profile(ch=8, Species="HeII")
+    span = SpectAnal(date=20171223, arr_shotNo=[80], LOCALorPPL="PPL",
+                     #instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
+                     #instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
+                     instwid=0.017867, lm0=462.235, dlm=0.0122165, opp_ch=[5, 6])   #19-23 Dec. 2017
+    span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
+    #make_profile(date=20171223, ch=1, Species="HeII")
 
