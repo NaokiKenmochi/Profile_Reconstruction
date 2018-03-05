@@ -11,6 +11,8 @@ __date__    = "3 Mar. 2018"
 import numpy as np
 import matplotlib.pyplot as plt
 import platform
+import subprocess
+import os.path
 
 
 class SpectAnal(Abel_ne):
@@ -38,12 +40,13 @@ class SpectAnal(Abel_ne):
         self.opp_ch = opp_ch
         self.sightline_spect = 1e-3*np.array([385, 422, 475, 526, 576, 623, 667, 709, 785])
 
-
     def load_spec_data(self):
         if(platform.system() == 'Darwin'):
-            path_OS = "/Volumes/"
+            path_OS = os.path.expanduser("~/mount_point/spectra/")
+
         elif(platform.system() == 'Windows'):
             path_OS = "//spectra/"
+
         if self.LOCALorPPL == "PPL":
             data = np.zeros((1024, 10))
             for (i, x) in enumerate(self.arr_shotnum):
@@ -296,6 +299,8 @@ def make_profile(date, ch, Species):
     plt.figure(figsize=(12, 8))
     plt.subplot(221)
 
+    _mount()
+    
     for i, shotnum in enumerate(arr_shotnum):
         print("\n\n\nCalculate T%s and V%s for #%d in %d" % (Species, Species, shotnum, date))
         span = SpectAnal(date=date, arr_shotNo=[shotnum], LOCALorPPL="PPL",
@@ -345,6 +350,22 @@ def make_profile(date, ch, Species):
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.2)
     plt.show()
+
+def _mount():
+    if(platform.system() == 'Darwin'):
+        try:
+            cmd = 'mount_smbfs //rt-1:ringtrap@172.16.107.131/C ~/mount_point/spectra/C'
+            subprocess.check_call(cmd, shell=True)
+
+        except Exception as e:
+            if(e.args[0] == 64):
+                print("!!!spectra is already mouted !!!")
+            elif(e.args[0] == 68):
+                print("Error; mount_smbfs: server connection failed: No route to host")
+            else:
+                print("!!!!!!!!!!!!!!!!! ERROR !!!!!!!!!!!!!!!!!!!!")
+                print(e.args)
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
 
 
