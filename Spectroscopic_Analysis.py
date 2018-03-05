@@ -5,12 +5,11 @@ from scipy import integrate
 from Abel_ne import Abel_ne
 
 __author__  = "Naoki Kenmochi <kenmochi@edu.k.u-tokyo.ac.jp>"
-__version__ = "0.1.0"
-__date__    = "6 Feb 2018"
+__version__ = "1.0.0"
+__date__    = "3 Mar. 2018"
 
 import numpy as np
 import matplotlib.pyplot as plt
-import abel
 import platform
 
 
@@ -104,7 +103,7 @@ class SpectAnal(Abel_ne):
         return k0 + k1*np.exp(-k2*x)
 
 
-    def gauss_fitting(self, Species, isAbel=False, spline=False, convolve=False, isPLOT=True, is1CH=False):
+    def gauss_fitting(self, Species, isAbel=False, spline=False, convolve=False, isPLOT=True, is1CH=False, CH=None):
         bounds_st = np.array([471.2, 468.45, 464.6])    #[HeI, HeII, CIII]
         bounds_ed = np.array([471.5, 468.65, 464.83])    #[HeI, HeII, CIII]
         T_arr = np.array([])
@@ -134,6 +133,9 @@ class SpectAnal(Abel_ne):
             plt.figure(figsize=(12, 8))
             plt.subplot(221)
 
+        #if(is1CH==True):
+        #    num_pos = CH
+        #else:
         for (num_pos, x) in enumerate(sightline_spect):
             try:
                 if(Species=="HeI"):
@@ -276,8 +278,13 @@ def make_profile(date, ch, Species):
     label = 'Line-Integrated'
     #arr_shotnum = np.array([31, 32, 33, 34, 35])
     #arr_sightline = np.array([379, 484, 583, 689, 820])
-    arr_shotnum = np.arange(68, 81)
-    arr_sightline = 1e-3*np.array([422, 475, 526, 576, 623, 667, 709, 785, 785, 667, 576, 475, 385])
+    #arr_shotnum = np.arange(68, 81)
+    #arr_sightline = 1e-3*np.array([422, 475, 526, 576, 623, 667, 709, 785, 785, 667, 576, 475, 385])
+    #arr_shotnum = np.array([87, 54, 89, 91, 93, 95, 97, 99, 101])    #For 23Feb2018
+    arr_sightline_buf = 1e-3*np.array([422, 385, 475, 526, 576, 623, 667, 709, 785])
+    arr_sightline = np.zeros(2*arr_sightline_buf.__len__())
+    arr_sightline[1::2] = arr_sightline[::2] = arr_sightline_buf[:]
+    arr_shotnum = np.r_[np.array([58, 59]), np.arange(87, 103)]
 
     T_rarr = np.array([])
     Terr_rarr = np.array([[]])
@@ -290,9 +297,11 @@ def make_profile(date, ch, Species):
     plt.subplot(221)
 
     for i, shotnum in enumerate(arr_shotnum):
+        print("\n\n\nCalculate T%s and V%s for #%d in %d" % (Species, Species, shotnum, date))
         span = SpectAnal(date=date, arr_shotNo=[shotnum], LOCALorPPL="PPL",
                          #instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
-                         instwid=0.017867, lm0=462.235, dlm=0.0122165, opp_ch=[5, 6])   #19-23 Dec. 2017
+                         #instwid=0.017867, lm0=462.235, dlm=0.0122165, opp_ch=[5, 6])   #19-23 Dec. 2017
+                         instwid=0.020104, lm0=462.255, dlm=0.0122178, opp_ch=[5, 6])   #19-23 Feb. 2018
         T_arr, Terr_arr, V_arr, Verr_arr, int_arr, data, wavelength = span.gauss_fitting(Species=Species, isAbel=False,
                                                                                          spline=False, convolve=False, isPLOT=False)
         T_rarr = np.append(T_rarr, T_arr[ch])
@@ -345,5 +354,5 @@ if __name__ == '__main__':
     #                 #instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
     #                 instwid=0.017867, lm0=462.235, dlm=0.0122165, opp_ch=[5, 6])   #19-23 Dec. 2017
     #span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
-    make_profile(date=20171223, ch=1, Species="HeII")
+    make_profile(date=20180223, ch=1, Species="HeII")
 

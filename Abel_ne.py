@@ -375,7 +375,7 @@ class Abel_ne(sightline_ne):
         730nm, 710nmの比を用いて電子温度を計算
         """
         vmin = 0.0
-        vmax = 5e-5
+        vmax = 5e-9
         #vmax = 5e-10
         #vmax = 3e-7
         time_offset_stft = 0.0
@@ -385,8 +385,8 @@ class Abel_ne(sightline_ne):
         #file_name = "Pol_ratio_stft_20180223_87to101.npz"
         #file_name = "Pol_ratio_woffset_stft_complex_20180223_87to101.npz"
         #file_name = "Pol_ratio_woffset_stft_20180223_87to101.npz"
-        #file_name = "Pol_ratio_woffset_stft_20171223_80to75.npz"
-        file_name = "Pol_woffset_stft_20171223_80to75.npz"
+        file_name = "Pol_ratio_woffset_stft_20171223_80to75.npz"
+        #file_name = "Pol_woffset_stft_20171223_80to75.npz"
         data_buf = np.load(file_path + file_name)
 
         r_pol = data_buf["r_pol"]
@@ -428,11 +428,11 @@ class Abel_ne(sightline_ne):
                 ax0.set_xlim(0.5, 2.5)
                 ax0.set_ylim([0, 2000])
                 if(i_wl==np.shape(Zxx_4D)[2]-1 and i_r==0):
-                    plt.title("%s" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
-                    #plt.title("Abel Inversion, %s\n447/388 (ne sensitive)" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
-                    #plt.title("%s\n447/388 (ne sensitive)" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
-                #if(i_wl==0 and i_r==0):
-                #    plt.title("728/706 (Te sensitive)", loc='right', fontsize=20, fontname="Times New Roman")
+                    #plt.title("%s" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
+                    plt.title("Abel Inversion, %s\n447/388 (ne sensitive)" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
+                    plt.title("%s\n447/388 (ne sensitive)" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
+                if(i_wl==0 and i_r==0):
+                    plt.title("728/706 (Te sensitive)", loc='right', fontsize=20, fontname="Times New Roman")
         fig.subplots_adjust(right=0.9)
         cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
         fig.colorbar(im, cax=cbar_ax)
@@ -465,6 +465,6 @@ if __name__ == '__main__':
     abne = Abel_ne()
     #abne.plot_ne_nel(spline=True)
     #abne.abelic_pol(spline=True)
-    abne.abelic_pol_stft(spline=True, abel=False)
+    abne.abelic_pol_stft(spline=True, abel=True)
     #abne.abelic_spectroscopy(spline=False, convolve=False)
     #abne.abelic_SX(spline=True)
