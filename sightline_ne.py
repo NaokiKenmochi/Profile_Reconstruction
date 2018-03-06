@@ -358,6 +358,7 @@ class sightline_ne(object):
         ax.plot(rs, ne_profile_z0)
         plt.draw()
         plt.show()
+        np.savez("rs_nez0_20171111.npz", rs=rs, ne_profile_z0=ne_profile_z0)
 
 
     def calc_ne(self):
@@ -368,7 +369,8 @@ class sightline_ne(object):
         #p_opt_best = [31.182,  4.464,  0.782,  0.516]
         #p_opt_best = [35.389,  6.629,  1.800,  0.549]
         #p_opt_best = [29.241,  4.295,  1.698,  0.550]
-        p_opt_best = [28.227,  5.897,  1.903,  0.550]
+        #p_opt_best = [28.227,  5.897,  1.903,  0.550]
+        p_opt_best = [35.389, 6.629, 1.800, 0.549]
         #p_opt_best = [1.0, 0.0, 0.0, 0.0]   #検算のための値
 
 
@@ -410,7 +412,7 @@ class sightline_ne(object):
         psix  = rt1.psi(p_opt_best[3], 0.0, self.separatrix)
 
         #view_profile(rm_best, p_opt_best)
-        #self.view_profile(p_opt_best, psi_x, psi_z, bb, b0)
+        self.view_profile(p_opt_best, psi_x, psi_z, bb, b0)
         nl_y = self.calc_nel(p_opt_best, psi_x, psi_z, bb, b0)
         return nl_y
 
