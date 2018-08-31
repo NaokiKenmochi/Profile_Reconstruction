@@ -105,6 +105,107 @@ class Abel_ne(sightline_ne):
 
         return n
 
+    def abelic_uneven_dr_wrt_solid_angle(self, nl, sight_line, d):
+        """
+        以下の条件の計測に対するアーベル変換を行います
+        計測視線：不等間隔
+        計測開始：中心より外側
+        計測終了：最外殻
+
+        カメラ計測のために立体角を考慮します
+
+        nlが２次元の場合，２次元のnを返す
+        :param nl:
+        :param sight_line:
+        :return:
+        """
+
+        k_st = np.int(sight_line[0]/(sight_line[1]-sight_line[0]))
+        N = sight_line.__len__()    #np.int(self.sight_line_para[-1]/dr)
+        A = np.eye(N)
+        S0 = np.ones(N)
+        for k in range(k_st+1, k_st+N+1):
+            S0[k-k_st-1] = (sight_line[-1] + d)**2 - sight_line[k-k_st-1]**2
+            if(k==k_st+1):
+                dr = sight_line[1] - sight_line[0]
+            elif(k==k_st+N):
+                dr = sight_line[-1] - sight_line[-2]
+            else:    #TODO   要検証
+                #dr = (sight_line[k-k_st] - sight_line[k-2-k_st])/2
+                dr = np.sqrt((((sight_line[k-k_st]-sight_line[k-k_st-1])**2 + (sight_line[k-k_st-1]-sight_line[k-2-k_st])**2))/2)
+            A[k-1-k_st, k-1-k_st] = dr*(k**2*np.arccos((k-1)/k) - (k-1)*np.sqrt(2*k-1))
+            for j in range(1, k_st+N-k+1):
+                if(j==k_st+N-k):
+                    dr = sight_line[-1] - sight_line[-2]
+                else:    #TODO   要検証
+                    #dr = (sight_line[j+k-k_st] - sight_line[j+k-2-k_st])/2
+                    dr = np.sqrt(((sight_line[j+k-k_st]-sight_line[j+k-k_st-1])**2 + (sight_line[j+k-k_st-1]-sight_line[j+k-2-k_st])**2)/2)
+                A[k-1-k_st, k+j-1-k_st] = dr*((k+j)**2*np.arccos((k-1)/(k+j)) - (k-1)*np.sqrt(2*k*(j+1)+j**2-1) \
+                                              + (k+j-1)**2*np.arccos(k/(k+j-1)) - k*np.sqrt(2*k*(j-1)+(j-1)**2) \
+                                              - (k+j)**2*np.arccos(k/(k+j)) + k*np.sqrt(2*k*j+j**2) \
+                                              - (k+j-1)**2*np.arccos((k-1)/(k+j-1)) + (k-1)*np.sqrt(2*k*j+j**2-2*j))
+
+        S = np.diag(1/S0)
+        if(nl.ndim == 1):
+            n = np.linalg.solve(np.dot(A, S), nl)
+        else:
+            #n = np.zeros(nl.shape, dtype=complex)
+            n = np.zeros(nl.shape)
+            for i in range(nl.__len__()):
+                n[i, :] = np.linalg.solve(np.dot(A, S), nl[i, :])  #for文を回さず同じ動作をさせたい
+
+        return n
+
+    def make_nel_uneven_dr_wrt_solid_angle(self, ne, sight_line, d):
+        """
+        局所値から立体角を考慮した視線積分値に変換します
+        計測視線：不等間隔
+        計測開始：中心より外側
+        計測終了：最外殻
+
+
+        nlが２次元の場合，２次元のnを返す
+        :param nl:
+        :param sight_line:
+        :return:
+        """
+
+        k_st = np.int(sight_line[0]/(sight_line[1]-sight_line[0]))
+        N = sight_line.__len__()    #np.int(self.sight_line_para[-1]/dr)
+        A = np.eye(N)
+        S0 = np.ones(N)
+        for k in range(k_st+1, k_st+N+1):
+            S0[k-k_st-1] = (sight_line[-1] + d)**2 - sight_line[k-k_st-1]**2
+            if(k==k_st+1):
+                dr = sight_line[1] - sight_line[0]
+            elif(k==k_st+N):
+                dr = sight_line[-1] - sight_line[-2]
+            else:    #TODO   要検証
+                #dr = (sight_line[k-k_st] - sight_line[k-2-k_st])/2
+                dr = np.sqrt((((sight_line[k-k_st]-sight_line[k-k_st-1])**2 + (sight_line[k-k_st-1]-sight_line[k-2-k_st])**2))/2)
+            A[k-1-k_st, k-1-k_st] = dr*(k**2*np.arccos((k-1)/k) - (k-1)*np.sqrt(2*k-1))
+            for j in range(1, k_st+N-k+1):
+                if(j==k_st+N-k):
+                    dr = sight_line[-1] - sight_line[-2]
+                else:    #TODO   要検証
+                    #dr = (sight_line[j+k-k_st] - sight_line[j+k-2-k_st])/2
+                    dr = np.sqrt(((sight_line[j+k-k_st]-sight_line[j+k-k_st-1])**2 + (sight_line[j+k-k_st-1]-sight_line[j+k-2-k_st])**2)/2)
+                A[k-1-k_st, k+j-1-k_st] = dr*((k+j)**2*np.arccos((k-1)/(k+j)) - (k-1)*np.sqrt(2*k*(j+1)+j**2-1) \
+                                              + (k+j-1)**2*np.arccos(k/(k+j-1)) - k*np.sqrt(2*k*(j-1)+(j-1)**2) \
+                                              - (k+j)**2*np.arccos(k/(k+j)) + k*np.sqrt(2*k*j+j**2) \
+                                              - (k+j-1)**2*np.arccos((k-1)/(k+j-1)) + (k-1)*np.sqrt(2*k*j+j**2-2*j))
+
+        S = np.diag(1/S0)
+        if(ne.ndim == 1):
+            nl = np.dot(np.dot(A, S), ne)
+        else:
+            #n = np.zeros(nl.shape, dtype=complex)
+            nl = np.zeros(ne.shape)
+            for i in range(ne.__len__()):
+                nl[i, :] = np.dot(np.dot(A, S), ne[i, :])  #for文を回さず同じ動作をさせたい
+
+        return nl
+
     def abelic(self, nl, sight_line):
         '''
         以下の条件の計測に対するアーベル変換を行います
@@ -193,8 +294,10 @@ class Abel_ne(sightline_ne):
 
         plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
         spect_local = self.abelic_uneven_dr(data, sightline_spect)
+        spect_integrated_wrtSolidAngle = self.make_nel_uneven_dr_wrt_solid_angle(spect_local, sightline_spect, d=0.3)
         #plt.plot(wavelength, spect_local, label='local')
         plt.plot(sightline_spect[1:], spect_local[515, 1:], '-o', label='Local')
+        plt.plot(sightline_spect[1:], spect_integrated_wrtSolidAngle[515, 1:], '-x', label='Line-integrated wrt Solid Angle')
         #for i in range(sightline_spect.__len__()):
         #    plt.plot(wavelength, spect_local[:, i], label=('r=%.3fm' % sightline_spect[i]))
         plt.xlabel('r [m]')
@@ -207,13 +310,13 @@ class Abel_ne(sightline_ne):
         plt.legend()
         plt.show()
 
-        #plt.figure(figsize=(16,9))
-        #WAVELENGTH, R_POL = np.meshgrid(wavelength, sightline_spect)
-        #plt.contourf(WAVELENGTH, R_POL, spect_local.T, cmap='jet')
-        #plt.colorbar()
-        #plt.xlabel('Wavelength [nm]')
-        #plt.ylabel('r [mm]')
-        #plt.show()
+        plt.figure(figsize=(16,9))
+        WAVELENGTH, R_POL = np.meshgrid(wavelength, sightline_spect)
+        plt.contourf(WAVELENGTH, R_POL, spect_local.T, cmap='jet')
+        plt.colorbar()
+        plt.xlabel('Wavelength [nm]')
+        plt.ylabel('r [mm]')
+        plt.show()
 
         return wavelength, sightline_spect, data, spect_local
 
@@ -358,6 +461,8 @@ class Abel_ne(sightline_ne):
 
         #ne = self.abelic(nl_y, rr)
         ne = self.abelic_uneven_dr(nl_y, rr)
+        nel = self.make_nel_uneven_dr_wrt_solid_angle(ne, rr, d=0.3)
+        ne_2 = self.abelic_uneven_dr_wrt_solid_angle(nel, rr, d=0.3)
 
         #ne_test = np.linspace(20, 0, 20)
         #nl_y_test = np.dot(A, ne_test)
@@ -366,7 +471,7 @@ class Abel_ne(sightline_ne):
         #plt.plot(ne_test_2)
         #plt.plot(nl_y_test)
         #plt.show()
-        return ne, rs, rr, ne_profile_z0, nl_y_ori
+        return ne, rs, rr, ne_profile_z0, nl_y_ori, nel, ne_2
 
     def abelic_pol_stft(self, spline=False, abel=True):
         """
@@ -375,17 +480,24 @@ class Abel_ne(sightline_ne):
         730nm, 710nmの比を用いて電子温度を計算
         """
         vmin = 0.0
-        vmax = 5e-9
+        vmax = 2e-9
         #vmax = 5e-10
-        #vmax = 3e-7
+        #vmax = 3e-6
         time_offset_stft = 0.0
+
+        #STFTの時間・周波数平均をとるための設定値
+        t_st = 1.25#1.25
+        t_ed = 1.35#1.35
+        f_st = 575
+        f_ed = 625
 
         file_path = '/Users/kemmochi/PycharmProjects/RT1DataBrowser/'
         #file_name = "Pol_stft_20180223_87to101.npz"
         #file_name = "Pol_ratio_stft_20180223_87to101.npz"
         #file_name = "Pol_ratio_woffset_stft_complex_20180223_87to101.npz"
-        #file_name = "Pol_ratio_woffset_stft_20180223_87to101.npz"
-        file_name = "Pol_ratio_woffset_stft_20171223_80to75.npz"
+        file_name = "Pol_ratio_woffset_stft_20180223_87to101.npz"
+        #file_name = "Pol_ratio_woffset_stft_20171223_80to75.npz"
+        #file_name = "Pol_ratio_woffset_stft_20171223_97to75.npz"
         #file_name = "Pol_woffset_stft_20171223_80to75.npz"
         data_buf = np.load(file_path + file_name)
 
@@ -408,6 +520,9 @@ class Abel_ne(sightline_ne):
         else:
             Zxx_4D_local = Zxx_4D
 
+        #Zxxの周波数，時間平均を格納する配列
+        arr_avZxx = np.zeros((r_pol.__len__(), np.shape(Zxx_4D)[2]))
+
         #plt.plot(r_pol, np.abs(Zxx_4D_local[12, 60, 0, :]))
         #plt.plot(r_pol, np.abs(Zxx_4D_local[12, 60, 1, :]))
         #plt.show()
@@ -420,6 +535,8 @@ class Abel_ne(sightline_ne):
             for i_wl in range(np.shape(Zxx_4D)[2]):
                 ax0 = plt.subplot(gs[i_r, i_wl])
                 im = plt.pcolormesh(t + time_offset_stft, f, np.abs(Zxx_4D_local[:, :, i_wl, i_r]), vmin=vmin, vmax=vmax)
+                arr_avZxx[i_r, i_wl] = self.cal_mean_value(t, f, t_st=t_st-time_offset_stft, t_ed=t_ed-time_offset_stft, f_st=f_st, f_ed=f_ed, Zxx=Zxx_4D_local[:,:,i_wl, i_r])
+                #arr_avZxx[i_r, i_wl] = self.cal_mean_value(t, f, t_st=1.5, t_ed=1.6, f_st=500, f_ed=550, Zxx=Zxx_4D_local[:,:,i_wl, i_r])
                 if(i_r == r_pol.__len__()-1):
                     ax0.set_xlabel("Time [sec]")
                 elif(i_r != r_pol.__len__()-1):
@@ -430,7 +547,7 @@ class Abel_ne(sightline_ne):
                 if(i_wl==np.shape(Zxx_4D)[2]-1 and i_r==0):
                     #plt.title("%s" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
                     plt.title("Abel Inversion, %s\n447/388 (ne sensitive)" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
-                    plt.title("%s\n447/388 (ne sensitive)" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
+                    #plt.title("%s\n447/388 (ne sensitive)" % (file_name), loc='right', fontsize=20, fontname="Times New Roman")
                 if(i_wl==0 and i_r==0):
                     plt.title("728/706 (Te sensitive)", loc='right', fontsize=20, fontname="Times New Roman")
         fig.subplots_adjust(right=0.9)
@@ -438,8 +555,31 @@ class Abel_ne(sightline_ne):
         fig.colorbar(im, cax=cbar_ax)
         plt.show()
 
+        rs, ne_profile_z0 = self.load_nez0_profile()
+        plt.rcParams['font.family'] ='sans-serif'
+        plt.rcParams['xtick.direction'] = 'in'
+        plt.rcParams['xtick.top'] = 'True'
+        plt.rcParams['ytick.right'] = 'True'
+        plt.rcParams['ytick.direction'] = 'in'
+        fig, ax1 = plt.subplots()
+        ax1.plot(rs, ne_profile_z0, label='Δ$n_e$', color='blue')
+        ax1.hlines(y=0, xmin=0.35, xmax=0.85, colors='black', linestyles='dashed')
+        #ax1.fill_between(rs, ne_profile_z0, where=ne_profile_z0>=0, facecolors='red', interpolate=True)
+        #ax1.fill_between(rs, ne_profile_z0, where=ne_profile_z0<=0, facecolors='blue', interpolate=True)
+        ax2 = ax1.twinx()
+        #ax2.plot(r_pol*1e-3, arr_avZxx[:, 0])
+        ax2.plot(r_pol*1e-3, arr_avZxx[:, 1], "-o", color='red', label='PSD')
+        ax2.set_ylabel('PSD')
+        plt.title("t: %.2f-%.2f sec, f: %d-%d Hz" % (t_st, t_ed, f_st, f_ed))
+        plt.xlim(0.35, 0.85)
+        ax1.set_ylabel('Δ$n_e [10^{16} m^{-3}]$')
+        ax1.set_xlabel('r [m]')
+        ax1.legend(loc='upper left')
+        ax2.legend(loc='upper right')
+        plt.show()
+
     def plot_ne_nel(self, spline=False):
-        ne, rs, rr, ne_profile_z0, nl_y_ori = self.abelic_ne(spline=spline)
+        ne, rs, rr, ne_profile_z0, nl_y_ori, nel, ne_2 = self.abelic_ne(spline=spline)
         plt.rcParams['font.family'] ='sans-serif'
         plt.rcParams['xtick.direction'] = 'in'
         plt.rcParams['xtick.top'] = 'True'
@@ -450,7 +590,9 @@ class Abel_ne(sightline_ne):
         #plt.plot(rr, nl_y, "-^", label='nel')
         plt.plot(rs, ne_profile_z0, color='black', label='$n_e$(original)')
         plt.plot(self.sight_line_para, nl_y_ori, "-^", color='blue', label='$n_eL$')
-        plt.plot(rr[:-1], ne[:-1], "o", color='red', label='$n_e$(reconstructed)')
+        plt.plot(rr[:-1], ne[:-1], "-o", color='red', label='$n_e$(reconstructed)')
+        plt.plot(rr[:-1], ne_2[:-1], "o", color='green', label='$n_e$(wrt Solid Angle)')
+        plt.plot(rr[:-1], nel[:-1], "o", color='blue', label='$n_eL$(wrt Solid Angle)')
         plt.legend(fontsize=10, loc='upper left')
         plt.tick_params(labelsize=12)
         plt.xlim(0, 1.0)
@@ -460,11 +602,27 @@ class Abel_ne(sightline_ne):
         plt.tight_layout()
         plt.show()
 
+    def cal_mean_value(self, t, f, t_st, t_ed, f_st, f_ed, Zxx):
+        #平均を求める際の時間(t)，周波数(f)の範囲とそのindexを取得
+        idx_tst = np.abs(np.asarray(t - t_st)).argmin()
+        idx_ted = np.abs(np.asarray(t - t_ed)).argmin()
+        idx_fst = np.abs(np.asarray(f - f_st)).argmin()
+        idx_fed = np.abs(np.asarray(f - f_ed)).argmin()
+
+        return np.mean(np.abs(Zxx[idx_fst:idx_fed, idx_tst:idx_ted]))
+
+    def load_nez0_profile(self):
+        nez0 = np.load("rs_nez0_35_t15mt11.npz")
+        #nez0 = np.load("rs_nez0_20171111.npz")
+        rs = nez0["rs"]
+        ne_profile_z0 = nez0["ne_profile_z0"]
+
+        return rs, ne_profile_z0
 
 if __name__ == '__main__':
     abne = Abel_ne()
     #abne.plot_ne_nel(spline=True)
     #abne.abelic_pol(spline=True)
-    abne.abelic_pol_stft(spline=True, abel=True)
-    #abne.abelic_spectroscopy(spline=False, convolve=False)
+    #abne.abelic_pol_stft(spline=True, abel=True)
+    abne.abelic_spectroscopy(spline=True, convolve=False)
     #abne.abelic_SX(spline=True)

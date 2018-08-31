@@ -14,6 +14,20 @@ class DriftRT1:
 
         return rs, ne_profile_z0
 
+    def load_ne2Dz0_profile(self):
+        nez0 = np.load("ne2D_rs_nez0_20180223_52_r2_v2.npz")
+        rs = nez0["rs"]
+        ne_profile_z0 = nez0["ne_profile_z0"]
+
+        return rs, ne_profile_z0
+
+    def savetxt_nez0(self):
+        rs, ne_profile_z0 = self.load_ne2Dz0_profile()
+        plt.plot(rs, ne_profile_z0)
+        plt.show()
+        np.savetxt("rs_nez0_20180223_52_r2_v2.txt", np.c_[rs, ne_profile_z0], delimiter=',')
+
+
     def load_TVHeII(self):
         TVHeII = np.load("r_THeII_VHeII_20171223_68to80.npz")
         r_buf = TVHeII["arr_sightline"]
@@ -79,31 +93,51 @@ class DriftRT1:
             V_ExB[i] = Vi[i] - V_curv_gradB_dia[idx]
 
 
-        #plt.plot(rs, ne_profile_z0)
-        #plt.plot(rs, pi)
-        #plt.xlim(0.35, 1.0)
-        #plt.show()
 
-        #plt.plot(rs, pi)
+        freq_drift = np.abs(V_ExB/(2*np.pi*r_Vi))
+
+        #plt.xkcd()
+        plt.rcParams['xtick.direction'] = 'in'
+        plt.rcParams['ytick.direction'] = 'in'
+        plt.rcParams['xtick.top'] = 'True'
+        plt.rcParams['ytick.right'] = 'True'
+        plt.rcParams['xtick.labelsize'] = 12
+        plt.rcParams['ytick.labelsize'] = 12
+        plt.plot(rs, ne_profile_z0, label="$n_i$")
+        plt.plot(rs, Ti, label="$T_i$")
+        plt.plot(rs, pi, label="$P_i$")
         #plt.plot(rs, grad_pi)
-        #plt.xlim(0.35, 1.0)
-        #plt.show()
+        plt.xlim(0.35, 1.0)
+        plt.ylim(0, 30)
+        plt.xlabel("r [m]")
+        plt.ylabel("ni, Ti, Pi")
+        plt.legend()
+        plt.show()
 
-        plt.plot(rs, V_curv, label="V_curv")
-        plt.plot(rs, V_gradB, label="V_gradB")
-        plt.plot(rs, V_dia, label="V_dia")
-        plt.plot(rs, V_curv+V_gradB+V_dia, label="V_curv + V_gradB + V_dia")
-        plt.plot(r_Vi, Vi, "o", label="V_spectroscopy")
-        plt.plot(r_Vi, V_ExB, "^", label="V_ExB", color="red")
+        #plt.plot(rs, -V_curv, label="$V_{curv}$")
+        #plt.plot(rs, -V_gradB, label="$V_{gradB}$")
+        #plt.plot(rs, -V_dia, label="$V_{dia}$")
+        plt.plot(rs, -(V_curv+V_gradB+V_dia), label="$V_{curv} + V_{gradB} + V_{dia}$", linewidth=3)
+        plt.plot(r_Vi, -Vi, "o", label="$V_{spectroscopy}$", color='black')
+        plt.plot(r_Vi, -V_ExB, "^", label="$V_{ExB}$", color="red", markersize=10)
         #plt.plot(self.r, bz)
         #plt.plot(self.r, gradB)
         plt.xlim(0.35, 0.8)
-        plt.ylim(-5000, 1000)
-        plt.legend()
-        plt.ylabel("Velocity [m/s]")
-        plt.xlabel("r [m]")
+        plt.ylim(-1000, 4000)
+        plt.legend(loc='upper right', fontsize=14)
+        plt.ylabel("Velocity [m/s]", fontsize=14)
+        plt.xlabel("r [m]", fontsize=14)
+        plt.hlines([0], 0.35, 0.8, linestyles='dashed')
+        plt.tight_layout()
+        plt.show()
+
+        plt.plot(r_Vi, freq_drift, "^", color="red")
+        plt.xlabel("r [m]", fontsize=14)
+        plt.ylabel("Drift \nFrequency \n[Hz]", fontsize=14)
+        plt.tight_layout()
         plt.show()
 
 if __name__ == "__main__":
     dr = DriftRT1()
-    dr.cal_drift()
+    #dr.cal_drift()
+    dr.savetxt_nez0()

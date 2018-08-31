@@ -125,7 +125,7 @@ class sightline_ne(object):
             return 0.0
 
         elif(rt1.psi(r, z, self.separatrix)>=self.psi0+0.001):
-            return n1*(0.8-r)
+            return n1*((0.8-r) + 0.1)
         else:
             return 0.0
 #----------------------------------------------------#
@@ -227,7 +227,7 @@ class sightline_ne(object):
                 nl_y[k] += np.exp(-a1*abs((psi_x[k, i] - psix)/self.psi0)**2)*n1*dx
                 #if(psi_x[k, i]>=self.psi0+0.001):#検算のためのテスト
                 #    rx = np.sqrt(x**2 + self.sight_line_para[k]**2)
-                #    nl_y[k] += n1*(0.8-rx)*dx #n1*dx
+                #    nl_y[k] += n1*((0.8-rx)+0.1)*dx #n1*dx
                 #else:
                 #    nl_y[k] += 0.0
             nl_y[k] = 2.0*nl_y[k]
@@ -281,7 +281,7 @@ class sightline_ne(object):
         #ne_profile_t10 = np.load("ne2D_35_t10_r1.npy")
         #ne_profile_t11 = np.load("ne2D_35_t11_r1.npy")
         #ne_profile_t15 = np.load("ne2D_35_t15_r1.npy")
-        #ne_profile = ne_profile_t11 - ne_profile_t10
+        #ne_profile = ne_profile_t15 - ne_profile_t11
 
         # density profileの表示
         levels = [0.005, 0.006, 0.007, 0.008, 0.009, 0.01, 0.011, 0.012, 0.013, 0.014]
@@ -358,7 +358,7 @@ class sightline_ne(object):
         ax.plot(rs, ne_profile_z0)
         plt.draw()
         plt.show()
-        np.savez("rs_nez0_20171111.npz", rs=rs, ne_profile_z0=ne_profile_z0)
+        #np.savez("rs_nez0_35_t15mt11.npz", rs=rs, ne_profile_z0=ne_profile_z0)
 
 
     def calc_ne(self):
@@ -370,7 +370,9 @@ class sightline_ne(object):
         #p_opt_best = [35.389,  6.629,  1.800,  0.549]
         #p_opt_best = [29.241,  4.295,  1.698,  0.550]
         #p_opt_best = [28.227,  5.897,  1.903,  0.550]
-        p_opt_best = [35.389, 6.629, 1.800, 0.549]
+        #p_opt_best = [35.389, 6.629, 1.800, 0.549]
+        #p_opt_best = [35.210, 6.341, 1.501, 0.544]
+        p_opt_best = [30, 40, 1.5, 0.7]
         #p_opt_best = [1.0, 0.0, 0.0, 0.0]   #検算のための値
 
 

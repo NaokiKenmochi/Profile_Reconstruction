@@ -370,10 +370,10 @@ def _mount():
 
 
 if __name__ == '__main__':
-    #span = SpectAnal(date=20171223, arr_shotNo=[80], LOCALorPPL="PPL",
+    span = SpectAnal(date=20171223, arr_shotNo=[80], LOCALorPPL="PPL",
     #                 #instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
     #                 #instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
-    #                 instwid=0.017867, lm0=462.235, dlm=0.0122165, opp_ch=[5, 6])   #19-23 Dec. 2017
-    #span.gauss_fitting(Species="HeII", isAbel=False, spline=False, convolve=False)
-    make_profile(date=20171223, ch=1, Species="HeII")
+                     instwid=0.017867, lm0=462.235, dlm=0.0122165, opp_ch=[5, 6])   #19-23 Dec. 2017
+    span.gauss_fitting(Species="HeII", isAbel=True, spline=False, convolve=False)
+    #make_profile(date=20171223, ch=1, Species="HeII")
 

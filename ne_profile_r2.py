@@ -5,7 +5,8 @@ Created on Fri Nov  17 21:03:10 2017
 """
 
 import rt1mag as rt1
-import numpy as np 
+import numpy as np
+import physical_constant as pc
 from   scipy.optimize import minimize, differential_evolution
 import matplotlib as mpl
 #mpl.use('Agg')
@@ -54,9 +55,9 @@ rms = np.linspace(0.4, 0.6, 100)   # z=0における密度最大値候補 (singl
 w = np.array(rms.shape)
 error_at_rms = np.zeros(w)
 
-nl_y450_mes_ori = 2.37e17#2.34e17 #12.62e17 #2.34e17 #2.64e17 #1.55e17 #2.77e17  #1.92e17  #* 2 * 0.780  # Xray mod
-nl_z620_mes_ori = 0.61e17#0.675e17 #3.837e17 #0.675e17 #0.94e17 #2.96e16 #0.67e17 #4.45e16  #* (0.28 + 0.44)# Xray mod
-nl_z700_mes_ori = 0.42e17#0.285e17 #3.32e17 #0.285e17 #0.425e17 #2.12e16 #0.39e17 #3.22e16  #* (0.23 + 0.39)# Xray mod
+nl_y450_mes_ori = 2.832228e17#2.828068e17#2.85e17#2.80e17#2.54e17#3.02e17#2.37e17#2.34e17 #12.62e17 #2.34e17 #2.64e17 #1.55e17 #2.77e17  #1.92e17  #* 2 * 0.780  # Xray mod
+nl_z620_mes_ori = 0.821236e17#0.836155e17#0.87e17#0.78e17#0.77e17#0.97e17#1.00e17#0.61e17#0.675e17 #3.837e17 #0.675e17 #0.94e17 #2.96e16 #0.67e17 #4.45e16  #* (0.28 + 0.44)# Xray mod
+nl_z700_mes_ori = 0.468873e17#0.479757e17#0.48e17#0.50e17#0.51e17#0.52e17#0.53e17#0.42e17#0.285e17 #3.32e17 #0.285e17 #0.425e17 #2.12e16 #0.39e17 #3.22e16  #* (0.23 + 0.39)# Xray mod
 
 nl_y450_mes = nl_y450_mes_ori*1e-16 # normalize by 1e-16
 nl_z620_mes = nl_z620_mes_ori*1e-16 # normalize by 1e-16
@@ -170,6 +171,7 @@ def elapsed_time(t1):
     
 #def view_profile(rm, p_opt):
 def view_profile(p_opt):
+    mpl.rcParams['font.family'] = 'Arial'
     psix  = rt1.psi(p_opt[3], 0.0, separatrix) # psi上のBが最小となる直線上の密度最大値
     n1, a1, b1, rm = p_opt
 
@@ -213,13 +215,18 @@ def view_profile(p_opt):
     psi = np.array([list(map(lambda r, z : rt1.psi(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
     coilcase_truth_table = np.array([list(map(lambda r, z : rt1.check_coilcase(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
     psi[coilcase_truth_table == True] = 0
-    #np.save('ne2D_29_fled_r2', ne_profile)
+    #np.save('ne2D_20180223_52_r2', ne_profile)
 
-    #ne_profile = np.load("ne2D_35_t10_r1.npy")
+    ne2D = np.load("ne2D_rs_nez0_20180223_52_r2_v2.npz")
+    ne_profile = ne2D["ne_profile"]
+    #ne_profile = np.load("ne2D_20180223_52_r2.npy")
     #ne_profile_t10 = np.load("ne2D_35_t10_r1.npy")
     #ne_profile_t11 = np.load("ne2D_35_t11_r1.npy")
     #ne_profile_t15 = np.load("ne2D_35_t15_r1.npy")
-    #ne_profile = ne_profile_t11 - ne_profile_t10
+    #ne_profile_t16 = np.load("ne2D_20180223_64_t164_r2.npy")
+    #ne_profile_t10 = np.load("ne2D_20180223_64_t10_r2.npy")
+    #ne_profile = ne_profile_t11
+
 
     # density profileの表示
     levels = [0.005, 0.006, 0.007, 0.008, 0.009, 0.01, 0.011, 0.012, 0.013, 0.014]
@@ -227,12 +234,35 @@ def view_profile(p_opt):
     plt.subplot(111)
     img = plt.imshow(ne_profile, origin='lower', cmap='jet',
     #img = plt.imshow(ne_profile, origin='lower', cmap=plt.cm.seismic,
-    #                 norm = MidpointNormalize(midpoint=0),
-    #                                  #vmin=-np.amax(ne_profile), vmax=np.amax(ne_profile),
-                     vmax=37,
+                     #norm = MidpointNormalize(midpoint=0),
+                                      #vmin=-np.amax(ne_profile), vmax=np.amax(ne_profile),
+                     vmax=36,
                      extent=(rs.min(), rs.max(), zs.min(), zs.max()))
-    plt.contour(r_mesh, z_mesh, ne_profile, colors=['k'])
-    plt.contour(r_mesh, z_mesh, psi, colors=['white'], levels=levels)
+    plt.contour(r_mesh, z_mesh, ne_profile, colors=['k'], linewidth=0.5)
+    plt.contour(r_mesh, z_mesh, psi, colors=['white'], linewidths=0.5, levels=levels)
+
+    #< O - cutoffとR - cutoffに関するコード >
+    mag_strength = np.array(
+        [list(map(lambda r, z: np.sqrt(rt1.bvec(r, z, separatrix)[0] ** 2 + rt1.bvec(r, z, separatrix)[1] ** 2),
+                  r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
+    ne_IF_profile = ne_profile * 1e16
+    omega_ce = pc.q * mag_strength / pc.me
+    omega_pe = 4 * np.pi * ne_IF_profile * pc.q ** 2 / pc.me
+    omega_R = omega_ce / 2 + ((omega_ce / 2) ** 2 + omega_pe ** 2) ** (1 / 2)
+    f_R = omega_R / (2 * np.pi)
+    f_O = np.sqrt(pc.q ** 2 * ne_IF_profile / (pc.epsilon_0 * pc.me)) / (2 * np.pi)
+    levels_cutoff = [2.45]
+    #plt.contour(r_mesh, z_mesh, f_R / 1e9, colors='lime', linewidths=2, levels=levels_cutoff)
+    #plt.contour(r_mesh, z_mesh, f_O / 1e9, colors='lime', linewidths=2, linestyles='dashed', levels=levels_cutoff)
+    plt.contour(r_mesh, z_mesh, f_O / 1e9, colors='lime', linewidths=2, levels=levels_cutoff)
+
+    #< 電子サイクロトロン共鳴面に関するコード >
+    levels_resonance = [875e-4]
+    levels_resonance_2nd = [875e-4 / 2]
+    plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, levels=levels_resonance)
+    ##plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, linestyles='dashed',
+    #            levels=levels_resonance_2nd)
+
     plt.title(r'$n_\mathrm{e}$')
     plt.xlabel(r'$r\mathrm{\ [m]}$')
     plt.ylabel(r'$z\mathrm{\ [m]}$')
@@ -244,6 +274,8 @@ def view_profile(p_opt):
     #cb.set_clim(0,6.4)
     cb.set_label(r'$\mathrm{[10^{16}\,m^{-3}]}$')
     plt.tight_layout(pad=1.0, w_pad=2.0, h_pad=1.0)
+    plt.savefig("ne2D_rs_nez0_20180223_52_r2_v2.eps", format='eps', dpi=600)
+
     plt.show()
 
     # psi term profileの表示
@@ -264,6 +296,7 @@ def view_profile(p_opt):
     cb.set_clim(0,6.4)
     cb.set_label(r'$\mathrm{[10^{16}\,m^{-3}]}$')
     plt.tight_layout(pad=1.0, w_pad=2.0, h_pad=1.0)
+
     plt.show()
 
     # B term profileの表示
@@ -291,9 +324,11 @@ def view_profile(p_opt):
     profile_z = 0.0  # プロファイルが見たい任意のz [m]
     profile_z_index = np.searchsorted(zs, profile_z)
     ne_profile_z0 = ne_profile[:][profile_z_index]
+    #np.savez_compressed('ne2D_rs_nez0_20180223_52_r2_v3', ne_profile=ne_profile, rs=rs, ne_profile_z0=ne_profile_z0)
 
     fig, ax = plt.subplots(1)
     ax.plot(rs, ne_profile_z0)
+    ax.plot(0.45*np.ones(3), np.array([1.06, 1.28, 1.50]))
     plt.draw()
     plt.show()
     
@@ -306,7 +341,8 @@ if __name__ == '__main__':
         #p_opt_best = [35.389,  6.629,  1.800,  0.549]
         #p_opt_best = [29.241,  4.295,  1.698,  0.550]
         #p_opt_best = [28.227,  4.897,  1.903,  0.542]
-        p_opt_best = [31.182,  4.464,  0.782,  0.516]
+        #p_opt_best = [31.182,  4.464,  0.782,  0.516]
+        p_opt_best = [35.210, 6.341, 1.501, 0.544]
 
 
     t_start = time.time()
