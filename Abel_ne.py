@@ -6,8 +6,8 @@ from scipy import interpolate, signal
 from matplotlib import gridspec
 
 __author__  = "Naoki Kenmochi <kenmochi@edu.k.u-tokyo.ac.jp>"
-__version__ = "0.0.0"
-__date__    = "5 Feb 2018"
+__version__ = "1.0.0"
+__date__    = "31 Aug 2018"
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -59,15 +59,15 @@ class Abel_ne(sightline_ne):
 
         ne = np.linalg.solve(A, nl_y)
 
-    def abelic_uneven_dr(self, nl, sight_line):
+    def make_integration_matrix_uneven_dr(self, sight_line, d):
         """
-        以下の条件の計測に対するアーベル変換を行います
+        以下の条件の計測に対するアーベル変換行列を計算します
         計測視線：不等間隔
         計測開始：中心より外側
         計測終了：最外殻
 
-        nlが２次元の場合，２次元のnを返す
-        :param nl:
+        カメラ計測のために立体角を考慮します
+
         :param sight_line:
         :return:
         """
@@ -75,7 +75,9 @@ class Abel_ne(sightline_ne):
         k_st = np.int(sight_line[0]/(sight_line[1]-sight_line[0]))
         N = sight_line.__len__()    #np.int(self.sight_line_para[-1]/dr)
         A = np.eye(N)
+        S0 = np.ones(N)
         for k in range(k_st+1, k_st+N+1):
+            S0[k-k_st-1] = (sight_line[-1] + d)**2 - sight_line[k-k_st-1]**2
             if(k==k_st+1):
                 dr = sight_line[1] - sight_line[0]
             elif(k==k_st+N):
@@ -94,6 +96,23 @@ class Abel_ne(sightline_ne):
                                               + (k+j-1)**2*np.arccos(k/(k+j-1)) - k*np.sqrt(2*k*(j-1)+(j-1)**2) \
                                               - (k+j)**2*np.arccos(k/(k+j)) + k*np.sqrt(2*k*j+j**2) \
                                               - (k+j-1)**2*np.arccos((k-1)/(k+j-1)) + (k-1)*np.sqrt(2*k*j+j**2-2*j))
+
+        S = np.diag(1/S0)
+        return A, S
+
+    def abelic_uneven_dr(self, nl, sight_line):
+        """
+        以下の条件の計測に対するアーベル変換を行います
+        計測視線：不等間隔
+        計測開始：中心より外側
+        計測終了：最外殻
+
+        nlが２次元の場合，２次元のnを返す
+        :param nl:
+        :param sight_line:
+        :return:
+        """
+        A, _ = self.make_integration_matrix_uneven_dr(sight_line, d=0)
 
         if(nl.ndim == 1):
             n = np.linalg.solve(A, nl)
@@ -120,32 +139,8 @@ class Abel_ne(sightline_ne):
         :return:
         """
 
-        k_st = np.int(sight_line[0]/(sight_line[1]-sight_line[0]))
-        N = sight_line.__len__()    #np.int(self.sight_line_para[-1]/dr)
-        A = np.eye(N)
-        S0 = np.ones(N)
-        for k in range(k_st+1, k_st+N+1):
-            S0[k-k_st-1] = (sight_line[-1] + d)**2 - sight_line[k-k_st-1]**2
-            if(k==k_st+1):
-                dr = sight_line[1] - sight_line[0]
-            elif(k==k_st+N):
-                dr = sight_line[-1] - sight_line[-2]
-            else:    #TODO   要検証
-                #dr = (sight_line[k-k_st] - sight_line[k-2-k_st])/2
-                dr = np.sqrt((((sight_line[k-k_st]-sight_line[k-k_st-1])**2 + (sight_line[k-k_st-1]-sight_line[k-2-k_st])**2))/2)
-            A[k-1-k_st, k-1-k_st] = dr*(k**2*np.arccos((k-1)/k) - (k-1)*np.sqrt(2*k-1))
-            for j in range(1, k_st+N-k+1):
-                if(j==k_st+N-k):
-                    dr = sight_line[-1] - sight_line[-2]
-                else:    #TODO   要検証
-                    #dr = (sight_line[j+k-k_st] - sight_line[j+k-2-k_st])/2
-                    dr = np.sqrt(((sight_line[j+k-k_st]-sight_line[j+k-k_st-1])**2 + (sight_line[j+k-k_st-1]-sight_line[j+k-2-k_st])**2)/2)
-                A[k-1-k_st, k+j-1-k_st] = dr*((k+j)**2*np.arccos((k-1)/(k+j)) - (k-1)*np.sqrt(2*k*(j+1)+j**2-1) \
-                                              + (k+j-1)**2*np.arccos(k/(k+j-1)) - k*np.sqrt(2*k*(j-1)+(j-1)**2) \
-                                              - (k+j)**2*np.arccos(k/(k+j)) + k*np.sqrt(2*k*j+j**2) \
-                                              - (k+j-1)**2*np.arccos((k-1)/(k+j-1)) + (k-1)*np.sqrt(2*k*j+j**2-2*j))
+        A, S = self.make_integration_matrix_uneven_dr(sight_line, d)
 
-        S = np.diag(1/S0)
         if(nl.ndim == 1):
             n = np.linalg.solve(np.dot(A, S), nl)
         else:
@@ -169,33 +164,8 @@ class Abel_ne(sightline_ne):
         :param sight_line:
         :return:
         """
+        A, S = self.make_integration_matrix_uneven_dr(sight_line, d)
 
-        k_st = np.int(sight_line[0]/(sight_line[1]-sight_line[0]))
-        N = sight_line.__len__()    #np.int(self.sight_line_para[-1]/dr)
-        A = np.eye(N)
-        S0 = np.ones(N)
-        for k in range(k_st+1, k_st+N+1):
-            S0[k-k_st-1] = (sight_line[-1] + d)**2 - sight_line[k-k_st-1]**2
-            if(k==k_st+1):
-                dr = sight_line[1] - sight_line[0]
-            elif(k==k_st+N):
-                dr = sight_line[-1] - sight_line[-2]
-            else:    #TODO   要検証
-                #dr = (sight_line[k-k_st] - sight_line[k-2-k_st])/2
-                dr = np.sqrt((((sight_line[k-k_st]-sight_line[k-k_st-1])**2 + (sight_line[k-k_st-1]-sight_line[k-2-k_st])**2))/2)
-            A[k-1-k_st, k-1-k_st] = dr*(k**2*np.arccos((k-1)/k) - (k-1)*np.sqrt(2*k-1))
-            for j in range(1, k_st+N-k+1):
-                if(j==k_st+N-k):
-                    dr = sight_line[-1] - sight_line[-2]
-                else:    #TODO   要検証
-                    #dr = (sight_line[j+k-k_st] - sight_line[j+k-2-k_st])/2
-                    dr = np.sqrt(((sight_line[j+k-k_st]-sight_line[j+k-k_st-1])**2 + (sight_line[j+k-k_st-1]-sight_line[j+k-2-k_st])**2)/2)
-                A[k-1-k_st, k+j-1-k_st] = dr*((k+j)**2*np.arccos((k-1)/(k+j)) - (k-1)*np.sqrt(2*k*(j+1)+j**2-1) \
-                                              + (k+j-1)**2*np.arccos(k/(k+j-1)) - k*np.sqrt(2*k*(j-1)+(j-1)**2) \
-                                              - (k+j)**2*np.arccos(k/(k+j)) + k*np.sqrt(2*k*j+j**2) \
-                                              - (k+j-1)**2*np.arccos((k-1)/(k+j-1)) + (k-1)*np.sqrt(2*k*j+j**2-2*j))
-
-        S = np.diag(1/S0)
         if(ne.ndim == 1):
             nl = np.dot(np.dot(A, S), ne)
         else:
