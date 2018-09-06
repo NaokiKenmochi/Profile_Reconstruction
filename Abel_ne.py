@@ -2,8 +2,9 @@
 """
 
 from sightline_ne import sightline_ne
-from scipy import interpolate, signal
+from scipy import interpolate, integrate, signal
 from matplotlib import gridspec
+from scipy.stats import norm
 
 __author__  = "Naoki Kenmochi <kenmochi@edu.k.u-tokyo.ac.jp>"
 __version__ = "1.0.0"
@@ -12,7 +13,6 @@ __date__    = "31 Aug 2018"
 import numpy as np
 import matplotlib.pyplot as plt
 import abel
-import matplotlib.ticker
 
 class Abel_ne(sightline_ne):
     """
@@ -257,17 +257,29 @@ class Abel_ne(sightline_ne):
         #plt.show()
 
         if(spline == True):
-            dr = (sightline_spect[-1] - sightline_spect[0])/((sightline_spect.__len__()-1)*2)
+            dr = (sightline_spect[-1] - sightline_spect[0])/((sightline_spect.__len__()-1)*3)
             f = interpolate.interp1d(sightline_spect, data)#, kind='zero')
             sightline_spect = np.arange(sightline_spect[0],sightline_spect[-1], dr)
             data = f(sightline_spect)
 
-        plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
+        recon_PyAbel = abel.basex.basex_transform(data[515, :], verbose=True, basis_dir=None, dr=sightline_spect[1]-sightline_spect[0], direction='inverse')
+        recon_PyAbel_direct = abel.direct.direct_transform(data[515, :], r=sightline_spect, direction='inverse')
+        recon_PyAbel_dasch_2p = abel.dasch.two_point_transform(data[515, :], dr=sightline_spect[1]-sightline_spect[0], direction='inverse')
+        recon_PyAbel_dasch_3p = abel.dasch.three_point_transform(data[515, :], dr=sightline_spect[1]-sightline_spect[0], direction='inverse')
+        recon_PyAbel_dasch_onion = abel.dasch.onion_peeling_transform(data[515, :], dr=sightline_spect[1]-sightline_spect[0], direction='inverse')
+        #recon_PyAbel_onion_bordas = abel.onion_bordas.onion_bordas_transform(data[515, :], dr=sightline_spect[1]-sightline_spect[0], direction='inverse')
+        #plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
         spect_local = self.abelic_uneven_dr(data, sightline_spect)
         spect_integrated_wrtSolidAngle = self.make_nel_uneven_dr_wrt_solid_angle(spect_local, sightline_spect, d=0.3)
         #plt.plot(wavelength, spect_local, label='local')
-        plt.plot(sightline_spect[1:], spect_local[515, 1:], '-o', label='Local')
-        plt.plot(sightline_spect[1:], spect_integrated_wrtSolidAngle[515, 1:], '-x', label='Line-integrated wrt Solid Angle')
+        plt.plot(sightline_spect[1:], spect_local[515, 1:], '-o', label='Local(Matoba)')
+        plt.plot(sightline_spect, recon_PyAbel/2, '-x', label='Local(PyAbel_Basex)')
+        plt.plot(sightline_spect, recon_PyAbel_direct, '-^', label='Local(PyAbel_direct)')
+        plt.plot(sightline_spect, recon_PyAbel_dasch_2p/2, '-.', label='Local(PyAbel_dasch_2p)')
+        plt.plot(sightline_spect, recon_PyAbel_dasch_3p/2, '-,', label='Local(PyAbel_dasch_3p)')
+        plt.plot(sightline_spect, recon_PyAbel_dasch_onion/2, '->', label='Local(PyAbel_dasch_onion)')
+        #plt.plot(sightline_spect, recon_PyAbel_onion_bordas/2, '-<', label='Local(PyAbel_onion_bordas)')
+        #plt.plot(sightline_spect[1:], spect_integrated_wrtSolidAngle[515, 1:], '-x', label='Line-integrated wrt Solid Angle')
         #for i in range(sightline_spect.__len__()):
         #    plt.plot(wavelength, spect_local[:, i], label=('r=%.3fm' % sightline_spect[i]))
         plt.xlabel('r [m]')
@@ -280,12 +292,25 @@ class Abel_ne(sightline_ne):
         plt.legend()
         plt.show()
 
-        plt.figure(figsize=(16,9))
-        WAVELENGTH, R_POL = np.meshgrid(wavelength, sightline_spect)
-        plt.contourf(WAVELENGTH, R_POL, spect_local.T, cmap='jet')
-        plt.colorbar()
-        plt.xlabel('Wavelength [nm]')
-        plt.ylabel('r [mm]')
+        #plt.figure(figsize=(16,9))
+        #WAVELENGTH, R_POL = np.meshgrid(wavelength, sightline_spect)
+        #plt.contourf(WAVELENGTH, R_POL, spect_local.T, cmap='jet')
+        #plt.colorbar()
+        #plt.xlabel('Wavelength [nm]')
+        #plt.ylabel('r [mm]')
+        #plt.show()
+
+        data[515, :] = np.sin(2*3*np.pi*sightline_spect)
+        plt.plot(sightline_spect, data[515, :])
+        plt.show()
+
+        psi = self.cal_psi(data[515, :], sightline_spect)
+        plt.plot(sightline_spect, psi)
+        plt.show()
+        dr = sightline_spect[1] - sightline_spect[0]
+        V_theta = np.gradient(psi, dr)/spect_local[515, :]
+        #V_theta = np.gradient(psi, dr)
+        plt.plot(sightline_spect, V_theta)
         plt.show()
 
         return wavelength, sightline_spect, data, spect_local
@@ -589,10 +614,92 @@ class Abel_ne(sightline_ne):
 
         return rs, ne_profile_z0
 
+    def cal_psi(self, vl, sight_line):
+        psi = np.zeros(sight_line.__len__())
+        for (j, sl) in enumerate(sight_line):
+            buf = 0
+            f = interpolate.interp1d(sight_line, 1/np.sqrt(sight_line**2 - sl**2))
+            #mu_0 = interpolate.interp1d(sight_line, vl/np.sqrt(sight_line**2 - sl**2))
+            #psi[i], _ = integrate.quad(mu_0, sl, sight_line[-1], limit=3000000, points=(sl, ))
+            #buf += vl[i]*np.log((sight_line[i+1]*(1+np.sqrt(1-)))
+            for i in range(j, sight_line.__len__()-1):
+                #I_ij, _ = integrate.quad(f, sight_line[i+1], sight_line[i])
+                I_ij = np.log((sight_line[i+1]*(1+np.sqrt(1-sight_line[j]**2/sight_line[i+1]**2)))/(sight_line[i]*(1+np.sqrt(1-sight_line[j]**2/sight_line[i]**2))))
+                buf += vl[i]*I_ij
+
+            psi[j] = buf
+
+        return psi/np.pi
+
+    def cal_line_integrated_velocity(self):#, v0, sight_line):
+        sight_line = np.linspace(0, 2, 200)
+        intensity = norm.pdf(sight_line, 0.65, 0.1)*sight_line**2
+        intensity /= np.max(intensity)
+        #v0 = norm.pdf(sight_line, 0.6, 0.05)#np.abs(np.cos(2*np.pi*sight_line))
+        #v0 = np.cos(4*np.pi*sight_line)
+        v0 = norm.pdf(sight_line, 0.6, 0.05)-norm.pdf(sight_line, 0.8, 0.03)/5
+        plt.plot(sight_line, v0)
+        plt.show()
+        v0_intensity = v0 * intensity
+        v0_spline = interpolate.interp1d(sight_line, v0_intensity, kind="quadratic")
+        intensity_spline = interpolate.interp1d(sight_line, intensity, kind="quadratic")
+        gridwidth = 0.05
+        N = np.int(1/gridwidth)
+        X, Y = np.meshgrid(np.arange(-1, 1, gridwidth), np.arange(-1, 1, gridwidth))
+        R = np.sqrt(X**2 + Y**2)
+
+        U = -v0_spline(R)*Y/R
+        V = v0_spline(R)*X/R
+
+        T = v0_spline(R)
+
+        v_L = gridwidth*np.sum(U, axis=1)
+
+        plt.figure(figsize=(8, 8))
+        plt.contourf(X, Y, T)
+        plt.show()
+
+        plt.figure(figsize=(8, 8))
+        plt.quiver(X, Y, U, V, color='red', angles='xy', scale_units='xy', scale=20)
+        plt.grid()
+        plt.draw()
+        plt.xlabel("x(z=0) [m]")
+        plt.ylabel("y(z=0) [m]")
+        plt.xlim(-1, 1)
+        plt.ylim(-1, 1)
+        #plt.tight_layout()
+        plt.show()
+
+        plt.plot(X[1], U[1])
+        plt.plot(X[7], U[7])
+        plt.plot(X[11], U[11])
+        plt.plot(X[15], U[15])
+        plt.plot(X[19], U[19])
+        plt.show()
+
+        psi = self.cal_psi(v_L[N+N/2:], X[1, N+N/2:])
+        dr = gridwidth
+        #V_theta = np.gradient(psi, dr)/intensity_spline(np.linspace(0, 1, N))
+        V_theta = np.gradient(psi, dr)/intensity_spline(np.linspace(0.5, 1, N/2))
+        plt.plot(X[1, N+N/2:], V_theta, label='reconstruction')
+        plt.plot(sight_line, v0, label='velocity(V)')
+        #plt.plot(X[1, N+N/2:], np.abs(v_L[N+N/2:]), '--', label='line int. (abs)')
+        plt.plot(X[1, N+N/2:], -v_L[N+N/2:], '--', label='line int. (inv)')
+        plt.plot(sight_line, intensity, '-.', label='intensity(I)')
+        plt.plot(sight_line, v0_intensity, ':', label='V*I')
+        plt.xlim(0, 1)
+        plt.ylim(0, np.max(V_theta)*1.2)
+        plt.legend()
+        plt.xlabel('r [m]')
+        plt.show()
+
+
+
 if __name__ == '__main__':
     abne = Abel_ne()
     #abne.plot_ne_nel(spline=True)
     #abne.abelic_pol(spline=True)
     #abne.abelic_pol_stft(spline=True, abel=True)
-    abne.abelic_spectroscopy(spline=True, convolve=False)
+    #abne.abelic_spectroscopy(spline=True, convolve=False)
     #abne.abelic_SX(spline=True)
+    abne.cal_line_integrated_velocity()
