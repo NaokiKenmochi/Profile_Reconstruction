@@ -8,7 +8,7 @@ from scipy.stats import norm
 
 __author__  = "Naoki Kenmochi <kenmochi@edu.k.u-tokyo.ac.jp>"
 __version__ = "1.0.0"
-__date__    = "31 Aug 2018"
+__date__    = "7 Sep 2018"
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -150,6 +150,31 @@ class Abel_ne(sightline_ne):
                 n[i, :] = np.linalg.solve(np.dot(A, S), nl[i, :])  #for文を回さず同じ動作をさせたい
 
         return n
+
+    def make_nel_uneven_dr(self, ne, sight_line):
+        """
+        局所値から立体角を考慮した視線積分値に変換します
+        計測視線：不等間隔
+        計測開始：中心より外側
+        計測終了：最外殻
+
+
+        nlが２次元の場合，２次元のnを返す
+        :param nl:
+        :param sight_line:
+        :return:
+        """
+        A, _ = self.make_integration_matrix_uneven_dr(sight_line, d=0)
+
+        if(ne.ndim == 1):
+            nl = np.dot(A, ne)
+        else:
+            #n = np.zeros(nl.shape, dtype=complex)
+            nl = np.zeros(ne.shape)
+            for i in range(ne.__len__()):
+                nl[i, :] = np.dot(A, ne[i, :])  #for文を回さず同じ動作をさせたい
+
+        return nl
 
     def make_nel_uneven_dr_wrt_solid_angle(self, ne, sight_line, d):
         """
@@ -643,52 +668,58 @@ class Abel_ne(sightline_ne):
         v0_intensity = v0 * intensity
         v0_spline = interpolate.interp1d(sight_line, v0_intensity, kind="quadratic")
         intensity_spline = interpolate.interp1d(sight_line, intensity, kind="quadratic")
-        gridwidth = 0.05
+        gridwidth = 0.01
         N = np.int(1/gridwidth)
         X, Y = np.meshgrid(np.arange(-1, 1, gridwidth), np.arange(-1, 1, gridwidth))
         R = np.sqrt(X**2 + Y**2)
 
-        U = -v0_spline(R)*Y/R
-        V = v0_spline(R)*X/R
+        U = v0_spline(R)*Y/R
+        V = -v0_spline(R)*X/R
 
         T = v0_spline(R)
 
         v_L = gridwidth*np.sum(U, axis=1)
 
-        plt.figure(figsize=(8, 8))
-        plt.contourf(X, Y, T)
-        plt.show()
 
         plt.figure(figsize=(8, 8))
+        plt.contourf(X, Y, T)
         plt.quiver(X, Y, U, V, color='red', angles='xy', scale_units='xy', scale=20)
         plt.grid()
         plt.draw()
         plt.xlabel("x(z=0) [m]")
         plt.ylabel("y(z=0) [m]")
         plt.xlim(-1, 1)
-        plt.ylim(-1, 1)
+        plt.ylim(0, 1)
         #plt.tight_layout()
         plt.show()
 
-        plt.plot(X[1], U[1])
-        plt.plot(X[7], U[7])
-        plt.plot(X[11], U[11])
-        plt.plot(X[15], U[15])
-        plt.plot(X[19], U[19])
-        plt.show()
+        #psi = self.cal_psi(v_L[N+N/2:], X[1, N+N/2:])
+
+        #psiを行列計算で求める
+        psi_abel = self.make_nel_uneven_dr(v_L[N+N/2:]/(2*X[1, N+N/2:]), X[1, N+N/2:])/np.pi
 
         psi = self.cal_psi(v_L[N+N/2:], X[1, N+N/2:])
+        v_L_abelinv = self.abelic_uneven_dr(v_L[N+N/2:], X[1, N+N/2:])/intensity_spline(np.linspace(0.5, 1, N/2))
+        plt.plot(X[1, N+N/2:], psi)
+        plt.plot(X[1, N+N/2:], psi_abel)
+        plt.show()
         dr = gridwidth
-        #V_theta = np.gradient(psi, dr)/intensity_spline(np.linspace(0, 1, N))
-        V_theta = np.gradient(psi, dr)/intensity_spline(np.linspace(0.5, 1, N/2))
+        V_theta_abel = -np.gradient(psi_abel, dr)/intensity_spline(np.linspace(0.5, 1, N/2))
+        V_theta = -np.gradient(psi, dr)/intensity_spline(np.linspace(0.5, 1, N/2))
+        #V_theta = np.gradient(psi, dr)/intensity_spline(np.linspace(0.5, 1, N/2))
+        plt.plot(X[1, N+N/2:], v_L_abelinv, label='v_L_abelinv')
         plt.plot(X[1, N+N/2:], V_theta, label='reconstruction')
+        plt.plot(X[1, N+N/2:], V_theta_abel, label='reconstruction_abel')
         plt.plot(sight_line, v0, label='velocity(V)')
         #plt.plot(X[1, N+N/2:], np.abs(v_L[N+N/2:]), '--', label='line int. (abs)')
-        plt.plot(X[1, N+N/2:], -v_L[N+N/2:], '--', label='line int. (inv)')
+        #plt.plot(v_L[N+N/2:], X[1, N+N/2:], '--', label='line int.')
+        plt.plot(X[1, N+N/2:],v_L[N+N/2:], '--', label='line int.')
+        #plt.plot(X[1, N+N/2:], -v_L[N+N/2:], '--', label='line int. (inv)')
         plt.plot(sight_line, intensity, '-.', label='intensity(I)')
         plt.plot(sight_line, v0_intensity, ':', label='V*I')
         plt.xlim(0, 1)
-        plt.ylim(0, np.max(V_theta)*1.2)
+        #plt.ylim(0, np.max(V_theta)*1.2)
+        plt.ylim(-10, 10)
         plt.legend()
         plt.xlabel('r [m]')
         plt.show()
