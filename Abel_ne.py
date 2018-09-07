@@ -75,6 +75,7 @@ class Abel_ne(sightline_ne):
         k_st = np.int(sight_line[0]/(sight_line[1]-sight_line[0]))
         N = sight_line.__len__()    #np.int(self.sight_line_para[-1]/dr)
         A = np.eye(N)
+        B = np.eye(N)
         S0 = np.ones(N)
         for k in range(k_st+1, k_st+N+1):
             S0[k-k_st-1] = (sight_line[-1] + d)**2 - sight_line[k-k_st-1]**2
@@ -97,8 +98,11 @@ class Abel_ne(sightline_ne):
                                               - (k+j)**2*np.arccos(k/(k+j)) + k*np.sqrt(2*k*j+j**2) \
                                               - (k+j-1)**2*np.arccos((k-1)/(k+j-1)) + (k-1)*np.sqrt(2*k*j+j**2-2*j))
 
-        S = np.diag(1/S0)
-        return A, S
+                B[k-1-k_st, k+j-2-k_st] = A[k-1-k_st, k+j-2-k_st]/(np.sqrt((sight_line[-1]+d)**2 - sight_line[k-k_st-1]**2) - np.sqrt(sight_line[k+j-k_st-2]**2- sight_line[k-k_st-1]**2))**2/2 \
+                          + A[k-1-k_st, k+j-2-k_st]/(np.sqrt((sight_line[-1]+d)**2 - sight_line[k-k_st-1]**2) + np.sqrt(sight_line[k+j-k_st-2]**2- sight_line[k-k_st-1]**2))**2/2
+
+#                S = np.diag(1/S0)
+        return A, B
 
     def abelic_uneven_dr(self, nl, sight_line):
         """
@@ -139,15 +143,17 @@ class Abel_ne(sightline_ne):
         :return:
         """
 
-        A, S = self.make_integration_matrix_uneven_dr(sight_line, d)
+        #A, S = self.make_integration_matrix_uneven_dr(sight_line, d)
+        A, B = self.make_integration_matrix_uneven_dr(sight_line, d)
 
         if(nl.ndim == 1):
-            n = np.linalg.solve(np.dot(A, S), nl)
+            #n = np.linalg.solve(np.dot(A, S), nl)
+            n = np.linalg.solve(B, nl)
         else:
             #n = np.zeros(nl.shape, dtype=complex)
             n = np.zeros(nl.shape)
             for i in range(nl.__len__()):
-                n[i, :] = np.linalg.solve(np.dot(A, S), nl[i, :])  #for文を回さず同じ動作をさせたい
+                n[i, :] = np.linalg.solve(B, nl[i, :])  #for文を回さず同じ動作をさせたい
 
         return n
 
@@ -189,15 +195,18 @@ class Abel_ne(sightline_ne):
         :param sight_line:
         :return:
         """
-        A, S = self.make_integration_matrix_uneven_dr(sight_line, d)
+        #A, S = self.make_integration_matrix_uneven_dr(sight_line, d)
+        A, B = self.make_integration_matrix_uneven_dr(sight_line, d)
 
         if(ne.ndim == 1):
-            nl = np.dot(np.dot(A, S), ne)
+            #nl = np.dot(np.dot(A, S), ne)
+            nl = np.dot(B, ne)
         else:
             #n = np.zeros(nl.shape, dtype=complex)
             nl = np.zeros(ne.shape)
             for i in range(ne.__len__()):
-                nl[i, :] = np.dot(np.dot(A, S), ne[i, :])  #for文を回さず同じ動作をさせたい
+                #nl[i, :] = np.dot(np.dot(A, S), ne[i, :])  #for文を回さず同じ動作をさせたい
+                nl[i, :] = np.dot(B, ne[i, :])  #for文を回さず同じ動作をさせたい
 
         return nl
 
@@ -293,18 +302,18 @@ class Abel_ne(sightline_ne):
         recon_PyAbel_dasch_3p = abel.dasch.three_point_transform(data[515, :], dr=sightline_spect[1]-sightline_spect[0], direction='inverse')
         recon_PyAbel_dasch_onion = abel.dasch.onion_peeling_transform(data[515, :], dr=sightline_spect[1]-sightline_spect[0], direction='inverse')
         #recon_PyAbel_onion_bordas = abel.onion_bordas.onion_bordas_transform(data[515, :], dr=sightline_spect[1]-sightline_spect[0], direction='inverse')
-        #plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
+        plt.plot(sightline_spect, data[515, :], '-^', label='Line-integrated')
         spect_local = self.abelic_uneven_dr(data, sightline_spect)
         spect_integrated_wrtSolidAngle = self.make_nel_uneven_dr_wrt_solid_angle(spect_local, sightline_spect, d=0.3)
         #plt.plot(wavelength, spect_local, label='local')
         plt.plot(sightline_spect[1:], spect_local[515, 1:], '-o', label='Local(Matoba)')
-        plt.plot(sightline_spect, recon_PyAbel/2, '-x', label='Local(PyAbel_Basex)')
-        plt.plot(sightline_spect, recon_PyAbel_direct, '-^', label='Local(PyAbel_direct)')
-        plt.plot(sightline_spect, recon_PyAbel_dasch_2p/2, '-.', label='Local(PyAbel_dasch_2p)')
-        plt.plot(sightline_spect, recon_PyAbel_dasch_3p/2, '-,', label='Local(PyAbel_dasch_3p)')
-        plt.plot(sightline_spect, recon_PyAbel_dasch_onion/2, '->', label='Local(PyAbel_dasch_onion)')
+        #plt.plot(sightline_spect, recon_PyAbel/2, '-x', label='Local(PyAbel_Basex)')
+        #plt.plot(sightline_spect, recon_PyAbel_direct, '-^', label='Local(PyAbel_direct)')
+        #plt.plot(sightline_spect, recon_PyAbel_dasch_2p/2, '-.', label='Local(PyAbel_dasch_2p)')
+        #plt.plot(sightline_spect, recon_PyAbel_dasch_3p/2, '-,', label='Local(PyAbel_dasch_3p)')
+        #plt.plot(sightline_spect, recon_PyAbel_dasch_onion/2, '->', label='Local(PyAbel_dasch_onion)')
         #plt.plot(sightline_spect, recon_PyAbel_onion_bordas/2, '-<', label='Local(PyAbel_onion_bordas)')
-        #plt.plot(sightline_spect[1:], spect_integrated_wrtSolidAngle[515, 1:], '-x', label='Line-integrated wrt Solid Angle')
+        plt.plot(sightline_spect[1:], spect_integrated_wrtSolidAngle[515, 1:], '-x', label='Line-integrated wrt Solid Angle')
         #for i in range(sightline_spect.__len__()):
         #    plt.plot(wavelength, spect_local[:, i], label=('r=%.3fm' % sightline_spect[i]))
         plt.xlabel('r [m]')
@@ -668,6 +677,7 @@ class Abel_ne(sightline_ne):
         v0_intensity = v0 * intensity
         v0_spline = interpolate.interp1d(sight_line, v0_intensity, kind="quadratic")
         intensity_spline = interpolate.interp1d(sight_line, intensity, kind="quadratic")
+
         gridwidth = 0.01
         N = np.int(1/gridwidth)
         X, Y = np.meshgrid(np.arange(-1, 1, gridwidth), np.arange(-1, 1, gridwidth))
@@ -675,12 +685,9 @@ class Abel_ne(sightline_ne):
 
         U = v0_spline(R)*Y/R
         V = -v0_spline(R)*X/R
-
-        T = v0_spline(R)
-
         v_L = gridwidth*np.sum(U, axis=1)
 
-
+        T = v0_spline(R)
         plt.figure(figsize=(8, 8))
         plt.contourf(X, Y, T)
         plt.quiver(X, Y, U, V, color='red', angles='xy', scale_units='xy', scale=20)
@@ -728,9 +735,9 @@ class Abel_ne(sightline_ne):
 
 if __name__ == '__main__':
     abne = Abel_ne()
-    #abne.plot_ne_nel(spline=True)
+    abne.plot_ne_nel(spline=True)
     #abne.abelic_pol(spline=True)
     #abne.abelic_pol_stft(spline=True, abel=True)
     #abne.abelic_spectroscopy(spline=True, convolve=False)
     #abne.abelic_SX(spline=True)
-    abne.cal_line_integrated_velocity()
+    #abne.cal_line_integrated_velocity()
