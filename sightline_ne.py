@@ -125,7 +125,7 @@ class sightline_ne(object):
             return 0.0
 
         elif(rt1.psi(r, z, self.separatrix)>=self.psi0+0.001):
-            return n1*((0.8-r) + 0.1)
+            return n1#*((0.8-r) + 0.1)
         else:
             return 0.0
 #----------------------------------------------------#
@@ -227,7 +227,7 @@ class sightline_ne(object):
                 nl_y[k] += np.exp(-a1*abs((psi_x[k, i] - psix)/self.psi0)**2)*n1*dx
                 #if(psi_x[k, i]>=self.psi0+0.001):#検算のためのテスト
                 #    rx = np.sqrt(x**2 + self.sight_line_para[k]**2)
-                #    nl_y[k] += n1*((0.8-rx)+0.1)*dx #n1*dx
+                #    nl_y[k] += n1*dx#((0.8-rx)+0.1)*dx #n1*dx
                 #else:
                 #    nl_y[k] += 0.0
             nl_y[k] = 2.0*nl_y[k]

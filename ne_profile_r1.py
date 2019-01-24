@@ -44,9 +44,9 @@ rms = np.linspace(0.5, 0.70, 100)   # z=0における密度最大値候補 (sing
 w = np.array(rms.shape)
 error_at_rms = np.zeros([w[0],2])
 
-nl_y450_mes_ori = 2.35e17#2.34e17 #12.62e17 #2.34e17 #2.64e17 #1.55e17 #2.77e17  #1.92e17  #* 2 * 0.780  # Xray mod
-nl_z620_mes_ori = 0.54e17#0.675e17 #3.837e17 #0.675e17 #0.94e17 #2.96e16 #0.67e17 #4.45e16  #* (0.28 + 0.44)# Xray mod
-nl_z700_mes_ori = 0.38e17#0.285e17 #3.32e17 #0.285e17 #0.425e17 #2.12e16 #0.39e17 #3.22e16  #* (0.23 + 0.39)# Xray mod
+nl_y450_mes_ori = 2.27e17#2.34e17 #12.62e17 #2.34e17 #2.64e17 #1.55e17 #2.77e17  #1.92e17  #* 2 * 0.780  # Xray mod
+nl_z620_mes_ori = 0.70e17#0.675e17 #3.837e17 #0.675e17 #0.94e17 #2.96e16 #0.67e17 #4.45e16  #* (0.28 + 0.44)# Xray mod
+nl_z700_mes_ori = 0.40e17#0.285e17 #3.32e17 #0.285e17 #0.425e17 #2.12e16 #0.39e17 #3.22e16  #* (0.23 + 0.39)# Xray mod
 
 nl_y450_mes = nl_y450_mes_ori*1e-16 # normalize by 1e-16
 nl_z620_mes = nl_z620_mes_ori*1e-16 # normalize by 1e-16
@@ -288,7 +288,7 @@ def elapsed_time(t1):
     print("Elapsed time is ", "{:7.3}".format(t2 - t1), " sec")    
 
 if __name__ == '__main__':
-    view_mode = True
+    view_mode = False
 
     if view_mode is True:
         print('Running with view mode')

@@ -3,8 +3,9 @@
 
 from sightline_ne import sightline_ne
 from scipy import interpolate, integrate, signal
-from matplotlib import gridspec
+from matplotlib import gridspec, cm
 from scipy.stats import norm
+from mpl_toolkits.mplot3d import Axes3D
 
 __author__  = "Naoki Kenmochi <kenmochi@edu.k.u-tokyo.ac.jp>"
 __version__ = "1.0.0"
@@ -98,8 +99,8 @@ class Abel_ne(sightline_ne):
                                               - (k+j)**2*np.arccos(k/(k+j)) + k*np.sqrt(2*k*j+j**2) \
                                               - (k+j-1)**2*np.arccos((k-1)/(k+j-1)) + (k-1)*np.sqrt(2*k*j+j**2-2*j))
 
-                B[k-1-k_st, k+j-2-k_st] = A[k-1-k_st, k+j-2-k_st]/(np.sqrt((sight_line[-1]+d)**2 - sight_line[k-k_st-1]**2) - np.sqrt(sight_line[k+j-k_st-2]**2- sight_line[k-k_st-1]**2))**2/2 \
-                          + A[k-1-k_st, k+j-2-k_st]/(np.sqrt((sight_line[-1]+d)**2 - sight_line[k-k_st-1]**2) + np.sqrt(sight_line[k+j-k_st-2]**2- sight_line[k-k_st-1]**2))**2/2
+                B[k-1-k_st, k+j-2-k_st] = A[k-1-k_st, k+j-2-k_st]/((np.sqrt((sight_line[-1]+d)**2 - sight_line[k-k_st-1]**2) - np.sqrt(sight_line[k+j-k_st-2]**2- sight_line[k-k_st-1]**2))**2*2) \
+                          + A[k-1-k_st, k+j-2-k_st]/((np.sqrt((sight_line[-1]+d)**2 - sight_line[k-k_st-1]**2) + np.sqrt(sight_line[k+j-k_st-2]**2- sight_line[k-k_st-1]**2))**2*2)
 
 #                S = np.diag(1/S0)
         return A, B
@@ -666,20 +667,21 @@ class Abel_ne(sightline_ne):
         return psi/np.pi
 
     def cal_line_integrated_velocity(self):#, v0, sight_line):
-        sight_line = np.linspace(0, 2, 200)
-        intensity = norm.pdf(sight_line, 0.65, 0.1)*sight_line**2
+        gridwidth = 0.01
+        N = np.int(1/gridwidth)
+        sight_line = np.linspace(0, 2, 2*N)
+        intensity = norm.pdf(sight_line, 0.50, 0.05)+2*norm.pdf(sight_line, 0.8, 0.03)/5
+        #intensity = norm.pdf(sight_line, 0.65, 0.1)*sight_line**2
         intensity /= np.max(intensity)
-        #v0 = norm.pdf(sight_line, 0.6, 0.05)#np.abs(np.cos(2*np.pi*sight_line))
+        v0 = norm.pdf(sight_line, 0.7, 0.05)#np.abs(np.cos(2*np.pi*sight_line))
         #v0 = np.cos(4*np.pi*sight_line)
-        v0 = norm.pdf(sight_line, 0.6, 0.05)-norm.pdf(sight_line, 0.8, 0.03)/5
-        plt.plot(sight_line, v0)
-        plt.show()
+        #v0 = norm.pdf(sight_line, 0.6, 0.05)-2*norm.pdf(sight_line, 0.8, 0.03)/5
+        #plt.plot(sight_line, v0)
+        #plt.show()
         v0_intensity = v0 * intensity
         v0_spline = interpolate.interp1d(sight_line, v0_intensity, kind="quadratic")
         intensity_spline = interpolate.interp1d(sight_line, intensity, kind="quadratic")
 
-        gridwidth = 0.01
-        N = np.int(1/gridwidth)
         X, Y = np.meshgrid(np.arange(-1, 1, gridwidth), np.arange(-1, 1, gridwidth))
         R = np.sqrt(X**2 + Y**2)
 
@@ -687,16 +689,15 @@ class Abel_ne(sightline_ne):
         V = -v0_spline(R)*X/R
         v_L = gridwidth*np.sum(U, axis=1)
 
-        T = v0_spline(R)
         plt.figure(figsize=(8, 8))
-        plt.contourf(X, Y, T)
+        #plt.contourf(X, Y, T)
         plt.quiver(X, Y, U, V, color='red', angles='xy', scale_units='xy', scale=20)
         plt.grid()
         plt.draw()
         plt.xlabel("x(z=0) [m]")
         plt.ylabel("y(z=0) [m]")
         plt.xlim(-1, 1)
-        plt.ylim(0, 1)
+        plt.ylim(-1, 1)
         #plt.tight_layout()
         plt.show()
 
@@ -706,15 +707,26 @@ class Abel_ne(sightline_ne):
         psi_abel = self.make_nel_uneven_dr(v_L[N+N/2:]/(2*X[1, N+N/2:]), X[1, N+N/2:])/np.pi
 
         psi = self.cal_psi(v_L[N+N/2:], X[1, N+N/2:])
-        v_L_abelinv = self.abelic_uneven_dr(v_L[N+N/2:], X[1, N+N/2:])/intensity_spline(np.linspace(0.5, 1, N/2))
-        plt.plot(X[1, N+N/2:], psi)
-        plt.plot(X[1, N+N/2:], psi_abel)
-        plt.show()
+        psi_all = self.cal_psi(v_L[N:], X[1, N:])
+        #plt.plot(psi_all, X[1, N:])
+        #plt.show()
+        #psi_spline = interpolate.interp1d(X[1, N:], psi_all, kind="quadratic")
+        ##psi_mesh = psi_spline(np.where((R < 0.99) & (R > 0.01), R, 0.01))
+        #psi_mesh = psi_spline(np.where((R < 0.95), R, 0.95))
+        #fig = plt.figure()
+        #ax = fig.gca(projection='3d')
+        #ax.plot_surface(X, Y, psi_mesh, rstride=1, cstride=1, cmap=cm.jet,linewidth=0.1, antialiased=False)
+        #plt.show()
+        ##plt.contourf(X, Y, psi_mesh)
+        #v_L_abelinv = self.abelic_uneven_dr(v_L[N+N/2:], X[1, N+N/2:])/intensity_spline(np.linspace(0.5, 1, N/2))
+        #plt.plot(X[1, N+N/2:], psi)
+        #plt.plot(X[1, N+N/2:], psi_abel)
+        #plt.show()
         dr = gridwidth
         V_theta_abel = -np.gradient(psi_abel, dr)/intensity_spline(np.linspace(0.5, 1, N/2))
         V_theta = -np.gradient(psi, dr)/intensity_spline(np.linspace(0.5, 1, N/2))
         #V_theta = np.gradient(psi, dr)/intensity_spline(np.linspace(0.5, 1, N/2))
-        plt.plot(X[1, N+N/2:], v_L_abelinv, label='v_L_abelinv')
+        #plt.plot(X[1, N+N/2:], v_L_abelinv, label='v_L_abelinv')
         plt.plot(X[1, N+N/2:], V_theta, label='reconstruction')
         plt.plot(X[1, N+N/2:], V_theta_abel, label='reconstruction_abel')
         plt.plot(sight_line, v0, label='velocity(V)')
@@ -723,7 +735,7 @@ class Abel_ne(sightline_ne):
         plt.plot(X[1, N+N/2:],v_L[N+N/2:], '--', label='line int.')
         #plt.plot(X[1, N+N/2:], -v_L[N+N/2:], '--', label='line int. (inv)')
         plt.plot(sight_line, intensity, '-.', label='intensity(I)')
-        plt.plot(sight_line, v0_intensity, ':', label='V*I')
+        #plt.plot(sight_line, v0_intensity, ':', label='V*I')
         plt.xlim(0, 1)
         #plt.ylim(0, np.max(V_theta)*1.2)
         plt.ylim(-10, 10)
@@ -735,9 +747,9 @@ class Abel_ne(sightline_ne):
 
 if __name__ == '__main__':
     abne = Abel_ne()
-    abne.plot_ne_nel(spline=True)
+    #abne.plot_ne_nel(spline=True)
     #abne.abelic_pol(spline=True)
     #abne.abelic_pol_stft(spline=True, abel=True)
     #abne.abelic_spectroscopy(spline=True, convolve=False)
     #abne.abelic_SX(spline=True)
-    #abne.cal_line_integrated_velocity()
+    abne.cal_line_integrated_velocity()

@@ -85,7 +85,8 @@ mpl.rcParams.update(params)
 #----------------------------------------------------#
 #                   def ne(r, z)                     #
 #----------------------------------------------------#
-def ne_single_gaussian(r, z, *p):
+def ne_single_gaussian(r, z, *p, psix=None, psi0=None):
+#def ne_single_gaussian(r, z, *p):  #上に変更（釼持20181214）要注意
 	n1, a1, b1, rm = p
 
 	br, bz = rt1.bvec(r, z, separatrix)
@@ -222,21 +223,23 @@ def view_profile(p_opt):
     #ne_profile = np.load("ne2D_20180223_52_r2.npy")
     #ne_profile_t10 = np.load("ne2D_35_t10_r1.npy")
     #ne_profile_t11 = np.load("ne2D_35_t11_r1.npy")
-    #ne_profile_t15 = np.load("ne2D_35_t15_r1.npy")
+    ne_profile_t20 = np.load("ne2D_35_t20_r1.npy")
+    ne_profile_t15 = np.load("ne2D_35_t15_r1.npy")
     #ne_profile_t16 = np.load("ne2D_20180223_64_t164_r2.npy")
     #ne_profile_t10 = np.load("ne2D_20180223_64_t10_r2.npy")
-    #ne_profile = ne_profile_t11
+    ne_profile = ne_profile_t20 - ne_profile_t15
 
 
     # density profileの表示
     levels = [0.005, 0.006, 0.007, 0.008, 0.009, 0.01, 0.011, 0.012, 0.013, 0.014]
     plt.figure(figsize=(8, 5))
     plt.subplot(111)
-    img = plt.imshow(ne_profile, origin='lower', cmap='jet',
-    #img = plt.imshow(ne_profile, origin='lower', cmap=plt.cm.seismic,
-                     #norm = MidpointNormalize(midpoint=0),
+    #img = plt.imshow(ne_profile, origin='lower', cmap='jet',
+    img = plt.imshow(ne_profile, origin='lower', cmap=plt.cm.seismic,
+                     norm = MidpointNormalize(midpoint=0),
                                       #vmin=-np.amax(ne_profile), vmax=np.amax(ne_profile),
-                     vmax=36,
+    #                 vmax=36,
+                     vmin=-8, vmax=8,
                      extent=(rs.min(), rs.max(), zs.min(), zs.max()))
     plt.contour(r_mesh, z_mesh, ne_profile, colors=['k'], linewidth=0.5)
     plt.contour(r_mesh, z_mesh, psi, colors=['white'], linewidths=0.5, levels=levels)
@@ -251,15 +254,16 @@ def view_profile(p_opt):
     omega_R = omega_ce / 2 + ((omega_ce / 2) ** 2 + omega_pe ** 2) ** (1 / 2)
     f_R = omega_R / (2 * np.pi)
     f_O = np.sqrt(pc.q ** 2 * ne_IF_profile / (pc.epsilon_0 * pc.me)) / (2 * np.pi)
+    #ne_cutoff = (2*np.pi*3.9e9)**2 *pc.epsilon_0*pc.me/(pc.q**2)
     levels_cutoff = [2.45]
-    #plt.contour(r_mesh, z_mesh, f_R / 1e9, colors='lime', linewidths=2, levels=levels_cutoff)
+#    plt.contour(r_mesh, z_mesh, f_R / 1e9, colors='lime', linewidths=2, levels=levels_cutoff)
     #plt.contour(r_mesh, z_mesh, f_O / 1e9, colors='lime', linewidths=2, linestyles='dashed', levels=levels_cutoff)
-    plt.contour(r_mesh, z_mesh, f_O / 1e9, colors='lime', linewidths=2, levels=levels_cutoff)
+    #plt.contour(r_mesh, z_mesh, f_O / 1e9, colors='lime', linewidths=2, levels=levels_cutoff)
 
     #< 電子サイクロトロン共鳴面に関するコード >
     levels_resonance = [875e-4]
     levels_resonance_2nd = [875e-4 / 2]
-    plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, levels=levels_resonance)
+#    plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, levels=levels_resonance)
     ##plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, linestyles='dashed',
     #            levels=levels_resonance_2nd)
 
@@ -325,6 +329,7 @@ def view_profile(p_opt):
     profile_z_index = np.searchsorted(zs, profile_z)
     ne_profile_z0 = ne_profile[:][profile_z_index]
     #np.savez_compressed('ne2D_rs_nez0_20180223_52_r2_v3', ne_profile=ne_profile, rs=rs, ne_profile_z0=ne_profile_z0)
+    #np.savez("rs_nez0_t11_20171111", rs=rs, ne_profile_z0=ne_profile_z0)
 
     fig, ax = plt.subplots(1)
     ax.plot(rs, ne_profile_z0)

@@ -1,14 +1,19 @@
+from matplotlib import rc
+from scipy import integrate
 import numpy as np
 import rt1mag
 import matplotlib.pyplot as plt
 import scipy.optimize
 
 class DriftRT1:
+    rc('text', usetex=True)
     def __init__(self):
         self.r = np.linspace(0.3, 1.0, 700)
 
-    def load_nez0_profile(self):
-        nez0 = np.load("rs_nez0_20171111.npz")
+    def load_nez0_profile(self, filename):
+        #nez0 = np.load("rs_nez0_20171111.npz")
+        #nez0 = np.load("rs_nez0_t11_20171111.npz")
+        nez0 = np.load(filename)
         rs = nez0["rs"]
         ne_profile_z0 = nez0["ne_profile_z0"]
 
@@ -58,6 +63,9 @@ class DriftRT1:
 
     def fit_T(self, rs):
         r, Ti, Tierr, r_V, Vi, Vierr = self.load_TVHeII()
+        Ti[3] = (Ti[2] + Ti[4])/2
+        Ti[5] = (Ti[4] + Ti[6])/2
+        Ti[10] = -10
         pinit = np.array([2.0, 1, 0.008])
         popt, pcov = scipy.optimize.curve_fit(self.func_T, r, Ti, p0=pinit, bounds=(0, [5., 2., 0.01]))
         fit_Ti = self.func_T(rs, *popt)
@@ -66,6 +74,48 @@ class DriftRT1:
         #plt.show()
 
         return fit_Ti, r_V, Vi, Vierr
+
+    def cal_dlnTe_over_dlnNe(self):
+        plt.figure(figsize=(5,2), dpi=150)
+        rs, ne_profile_z0_t15 = self.load_nez0_profile("rs_nez0_20171111.npz")
+        _, ne_profile_z0_t11 = self.load_nez0_profile("rs_nez0_t11_20171111.npz")
+        Ti, r_Vi, Vi, Vierr = self.fit_T(rs)
+        dlnTe = np.gradient(Ti, rs[0]-rs[1])/Ti
+        dlnNe_t15 = np.gradient(ne_profile_z0_t15, rs[0]-rs[1])/ne_profile_z0_t15
+        dlnNe_t11 = np.gradient(ne_profile_z0_t11, rs[0]-rs[1])/ne_profile_z0_t11
+        Te_t15 = -integrate.cumtrapz(5*np.gradient(Ti, rs[0]-rs[1]), rs)
+        Te_t11 = -integrate.cumtrapz(3*np.gradient(Ti, rs[0]-rs[1]), rs)
+        dlnTe_t15 = np.gradient(Te_t15, rs[0]-rs[1])/Te_t15
+        dlnTe_t11 = np.gradient(Te_t11, rs[0]-rs[1])/Te_t11
+        #plt.plot(rs, dlnNe_t11)
+        #plt.plot(rs, dlnTe)
+        #plt.plot(rs, 2*dlnTe/dlnNe_t11, label='t=1.1sec')
+        #plt.plot(rs, 3*dlnTe/dlnNe_t15, label='t=1.5sec')
+        #plt.plot(rs, dlnTe/dlnNe_t11, label='t=1.1sec')
+        #plt.plot(rs, dlnTe/dlnNe_t15, label='t=1.5sec')
+        #plt.plot(rs[:-1], dlnTe_t11/dlnNe_t11[:-1], label='t=1.1sec', color='blue')
+        #plt.plot(rs[:-1], dlnTe_t15/dlnNe_t15[:-1], label='t=1.4sec', color='red')
+        plt.plot(rs, Ti*ne_profile_z0_t11/np.max(Ti*ne_profile_z0_t11), label='t=1.1sec', color='blue')
+        plt.plot(rs, Ti*ne_profile_z0_t15/np.max(Ti*ne_profile_z0_t15), label='t=1.4sec', color='red')
+        #plt.plot(rs, ne_profile_z0_t11/np.max(ne_profile_z0_t11), label='t=1.1sec', color='blue')
+        #plt.plot(rs, ne_profile_z0_t15/np.max(ne_profile_z0_t15), label='t=1.4sec', color='red')
+        #plt.plot(rs[:-1], Te_t11, label='t=1.1sec', color='blue')
+        #plt.plot(rs[:-1], Te_t15, label='t=1.4sec', color='red')
+        #plt.plot(rs, 2*Ti, label='t=1.1sec')
+        #plt.plot(rs, 3*Ti, label='t=1.4sec')
+        #plt.plot(rs[:-1], dlnTe_t15+0.1, label='t=1.4sec')
+        #plt.plot(rs[:-1], dlnTe_t11, label='t=1.1sec')
+        plt.ylim(0, 1)
+        plt.xlim(0.4, 1)
+        #plt.hlines(2/3, xmin=0.4, xmax=1, linestyles='dotted')
+        plt.legend(loc='upper right')
+        #plt.ylabel(r'$\eta = d$ ln $T_e/d$ ln $n_e$')
+        #plt.ylabel(r'$n_e [10^{17}m^{-3}]$')
+        #plt.ylabel(r'$T_e$ [eV]')
+        plt.ylabel(r'$P_e/P_{e(MAX)}$')
+        plt.xlabel('R [m]')
+        plt.tight_layout()
+        plt.show()
 
     def cal_drift(self):
         z = 0.0
@@ -140,4 +190,5 @@ class DriftRT1:
 if __name__ == "__main__":
     dr = DriftRT1()
     #dr.cal_drift()
-    dr.savetxt_nez0()
+    #dr.savetxt_nez0()
+    dr.cal_dlnTe_over_dlnNe()
