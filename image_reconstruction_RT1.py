@@ -9,6 +9,7 @@ from scipy.interpolate import RectBivariateSpline, interp1d
 from bokeh.plotting import figure, output_file, show, reset_output
 from multiprocessing import Pool
 from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import animation
 
 def unwrap_self_plot_projection_image_spline_wrt_1reflection_MP(arg, **kwarg):
     return ImageReconstruction.plot_projection_image_spline_wrt_1reflection_MP(*arg, **kwarg)
@@ -461,8 +462,6 @@ class ImageReconstruction:
 
     def ray_trace_3D(self, dist_from_cam, theta, phi):
         d_dist_from_cam = dist_from_cam[1] - dist_from_cam[0]
-        #x[0] = self.R_cam
-        #vec_i = np.array([-np.cos(theta), np.sin(theta), np.sin(phi)])
         vec_i = np.array([-np.cos(theta), np.sin(theta), np.sin(phi)])
         norm_vec_i = np.linalg.norm(vec_i)
         x_1ref = np.zeros(dist_from_cam.__len__())
@@ -475,249 +474,102 @@ class ImageReconstruction:
         x = self.R_cam + d_dist_from_cam*vec_i[0]*i_array/norm_vec_i
         y = d_dist_from_cam*vec_i[1]*i_array/norm_vec_i
         z = d_dist_from_cam*vec_i[2]*i_array/norm_vec_i
-        #for i in range(dist_from_cam.__len__()-1):
-        #    x[i+1] = x[i] - d_dist_from_cam*np.cos(theta)/norm_vec_i
-        #    y[i+1] = y[i] + d_dist_from_cam*np.sin(theta)/norm_vec_i
-        #    z[i+1] = z[i] + d_dist_from_cam*np.sin(phi)/norm_vec_i
-
         #===============================================================================================================
         #   真空容器との接触を判定
         #===============================================================================================================
         is_inside_vacuum_vessel_0 = np.where((np.abs(z)<0.35) & (np.sqrt(x**2 + y**2)<1.0))
         is_inside_vacuum_vessel_1 = np.where((np.abs(z)<0.35) & (np.sqrt(x**2 + y**2)>1.0))
-        #is_inside_vacuum_vessel_2 = np.where((z>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(z-0.53))))
-        #is_inside_vacuum_vessel_3 = np.where((z<-0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 + 2.7838*(z+0.53))))
-        #is_inside_vacuum_vessel_4 = np.where((z>0.35) & (z<0.53) & (np.sqrt(x**2 + y**2)>(0.8 + np.sqrt(0.04 - (z - 0.35)**2))))
-        #is_inside_vacuum_vessel_5 = np.where((z<-0.35) & (z>-0.53) & (np.sqrt(x**2 + y**2)>(0.8 + np.sqrt(0.04 - (z + 0.35)**2))))
-        if is_inside_vacuum_vessel_1[0][-1] > is_inside_vacuum_vessel_0[0][0]:
-            index_is_inside_vacuum_vessel = np.min(np.where(is_inside_vacuum_vessel_1 > is_inside_vacuum_vessel_0[0][0], is_inside_vacuum_vessel_1, np.inf)) - 1
-            reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
-            vec_n = np.array([-reflectionpoint[0], -reflectionpoint[1], 0])
-            vec_ref = self.cal_reflection_vector(vec_i, vec_n)
-            j_array = np.arange(dist_from_cam.__len__()-index_is_inside_vacuum_vessel)
-            norm_vec_ref = np.linalg.norm(vec_ref)
-            x[index_is_inside_vacuum_vessel+1:] = np.nan
-            y[index_is_inside_vacuum_vessel+1:] = np.nan
-            z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            y_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            z_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[0] + d_dist_from_cam*vec_ref[0]*j_array/norm_vec_ref
-            y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] + d_dist_from_cam*vec_ref[1]*j_array/norm_vec_ref
-            z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] + d_dist_from_cam*vec_ref[2]*j_array/norm_vec_ref
-            reflection_factor = self.cal_injection_angle_for2vector(vec_i, vec_n)
-
+        is_inside_vacuum_vessel_2 = np.where((np.abs(z)>0.35) & (np.abs(z)<0.53) & (np.sqrt(x**2 + y**2)>(0.8 + np.sqrt(0.04 - (np.abs(z) - 0.35)**2))))
+        is_inside_vacuum_vessel_3 = np.where((np.abs(z)>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(np.abs(z)-0.53))))
+        flg_reflection = 0
         try:
-            index_is_inside_vacuum_vessel = np.min(np.argwhere((z>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(z-0.53))))) - 1
-            reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
-            if(reflectionpoint[0]>0):
-                #vec_n = np.array([-reflectionpoint[0], -reflectionpoint[1], -1/2.7838])
-                vec_n = np.array([reflectionpoint[0], reflectionpoint[1], -(np.sqrt(reflectionpoint[0]**2 + reflectionpoint[1]**2)*2.7838)])
-            else:
-                #vec_n = np.array([-reflectionpoint[0], -reflectionpoint[1], 1/2.7838])
-                vec_n = np.array([reflectionpoint[0], reflectionpoint[1], (np.sqrt(reflectionpoint[0]**2 + reflectionpoint[1]**2)*2.7838)])
+            if is_inside_vacuum_vessel_1[0][-1] > is_inside_vacuum_vessel_0[0][0]:
+                flg_reflection += 1
+                index_is_inside_vacuum_vessel = np.min(np.where(is_inside_vacuum_vessel_1 > is_inside_vacuum_vessel_0[0][0], is_inside_vacuum_vessel_1, np.inf)) - 1
+                reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
+                vec_n = np.array([-reflectionpoint[0], -reflectionpoint[1], 0])
+                sign_vec_ref = np.array([1, 1, 1])
+            elif np.sum(is_inside_vacuum_vessel_2)>0:
+                flg_reflection += 1
+                index_is_inside_vacuum_vessel = np.min(np.argwhere((np.abs(z)>0.35) & (np.abs(z)<0.53) & (np.sqrt(x**2 + y**2)>(0.8 + np.sqrt(0.04 - (np.abs(z) - 0.35)**2))))) - 1
+                reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
+                vec_n = np.array([-0.8*reflectionpoint[0], -0.8*reflectionpoint[1], 0.35*np.sign(reflectionpoint[2])])
+                sign_vec_ref = np.array([1, 1, -1])
+            elif np.sum(is_inside_vacuum_vessel_3)>0:
+                flg_reflection += 1
+                index_is_inside_vacuum_vessel = np.min(np.argwhere((np.abs(z)>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(np.abs(z)-0.53))))) - 1
+                reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
+                sign_vec_ref = np.array([1, -1, 1])
+                if(reflectionpoint[0]>0):
+                    vec_n = np.array([reflectionpoint[0], reflectionpoint[1], -np.sign(reflectionpoint[2])*(np.sqrt(reflectionpoint[0]**2 + reflectionpoint[1]**2)*2.7838)])
+                else:
+                    vec_n = np.array([reflectionpoint[0], reflectionpoint[1], np.sign(reflectionpoint[2])*(np.sqrt(reflectionpoint[0]**2 + reflectionpoint[1]**2)*2.7838)])
+        except:
+            pass
+        try:
             vec_ref = self.cal_reflection_vector(vec_i, vec_n)
-            j_array = np.arange(dist_from_cam.__len__()-index_is_inside_vacuum_vessel)
             norm_vec_ref = np.linalg.norm(vec_ref)
+            j_array = np.arange(dist_from_cam.__len__()-index_is_inside_vacuum_vessel)
             x[index_is_inside_vacuum_vessel+1:] = np.nan
             y[index_is_inside_vacuum_vessel+1:] = np.nan
             z[index_is_inside_vacuum_vessel+1:] = np.nan
             x_1ref[:index_is_inside_vacuum_vessel] = np.nan
             y_1ref[:index_is_inside_vacuum_vessel] = np.nan
             z_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[0] + d_dist_from_cam*vec_ref[0]*j_array/norm_vec_ref
-            y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] - d_dist_from_cam*vec_ref[1]*j_array/norm_vec_ref
-            z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] + d_dist_from_cam*vec_ref[2]*j_array/norm_vec_ref
+            x_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[0] + d_dist_from_cam*sign_vec_ref[0]*vec_ref[0]*j_array/norm_vec_ref
+            y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] + d_dist_from_cam*sign_vec_ref[1]*vec_ref[1]*j_array/norm_vec_ref
+            z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] + d_dist_from_cam*sign_vec_ref[2]*vec_ref[2]*j_array/norm_vec_ref
             reflection_factor = self.cal_injection_angle_for2vector(vec_i, vec_n)
         except:
             pass
 
-        try:
-            index_is_inside_vacuum_vessel = np.min(np.argwhere((z<-0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 + 2.7838*(z+0.53))))) - 1
-            reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
-            if(reflectionpoint[0]>0):
-                vec_n = np.array([reflectionpoint[0], reflectionpoint[1], (np.sqrt(reflectionpoint[0]**2 + reflectionpoint[1]**2)*2.7838)])
-            else:
-                vec_n = np.array([reflectionpoint[0], reflectionpoint[1], -(np.sqrt(reflectionpoint[0]**2 + reflectionpoint[1]**2)*2.7838)])
-                #vec_n = np.array([-reflectionpoint[0], -reflectionpoint[1], -1/2.7838])
-
-            vec_ref = self.cal_reflection_vector(vec_i, vec_n)
-            j_array = np.arange(dist_from_cam.__len__()-index_is_inside_vacuum_vessel)
-            norm_vec_ref = np.linalg.norm(vec_ref)
-            x[index_is_inside_vacuum_vessel+1:] = np.nan
-            y[index_is_inside_vacuum_vessel+1:] = np.nan
-            z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            y_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            z_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[0] + d_dist_from_cam*vec_ref[0]*j_array/norm_vec_ref
-            y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] - d_dist_from_cam*vec_ref[1]*j_array/norm_vec_ref
-            z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] + d_dist_from_cam*vec_ref[2]*j_array/norm_vec_ref
-            reflection_factor = self.cal_injection_angle_for2vector(vec_i, vec_n)
-        except:
-            pass
-        try:
-            index_is_inside_vacuum_vessel = np.min(np.argwhere((z>0.35) & (z<0.53) & (np.sqrt(x**2 + y**2)>(0.8 + np.sqrt(0.04 - (z - 0.35)**2))))) - 1
-            reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
-            vec_n = np.array([-0.8*reflectionpoint[0], -0.8*reflectionpoint[1], 0.35])
-            vec_ref = self.cal_reflection_vector(vec_i, vec_n)
-            norm_vec_ref = np.linalg.norm(vec_ref)
-            j_array = np.arange(dist_from_cam.__len__()-index_is_inside_vacuum_vessel)
-            x[index_is_inside_vacuum_vessel+1:] = np.nan
-            y[index_is_inside_vacuum_vessel+1:] = np.nan
-            z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            y_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            z_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[0] + d_dist_from_cam*vec_ref[0]*j_array/norm_vec_ref
-            y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] + d_dist_from_cam*vec_ref[1]*j_array/norm_vec_ref
-            z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] - d_dist_from_cam*vec_ref[2]*j_array/norm_vec_ref
-            reflection_factor = self.cal_injection_angle_for2vector(vec_i, vec_n)
-        except:
-            pass
-
-        try:
-            index_is_inside_vacuum_vessel = np.min(np.argwhere((z<-0.35) & (z>-0.53) & (np.sqrt(x**2 + y**2)>(0.8 + np.sqrt(0.04 - (z + 0.35)**2))))) - 1
-            reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
-            vec_n = np.array([-0.8*reflectionpoint[0], -0.8*reflectionpoint[1], -0.35])
-            vec_ref = self.cal_reflection_vector(vec_i, vec_n)
-            norm_vec_ref = np.linalg.norm(vec_ref)
-            j_array = np.arange(dist_from_cam.__len__()-index_is_inside_vacuum_vessel)
-            x[index_is_inside_vacuum_vessel+1:] = np.nan
-            y[index_is_inside_vacuum_vessel+1:] = np.nan
-            z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            y_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            z_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[0] + d_dist_from_cam*vec_ref[0]*j_array/norm_vec_ref
-            y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] + d_dist_from_cam*vec_ref[1]*j_array/norm_vec_ref
-            z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] - d_dist_from_cam*vec_ref[2]*j_array/norm_vec_ref
-            reflection_factor = self.cal_injection_angle_for2vector(vec_i, vec_n)
-        except:
-            pass
         #===============================================================================================================
         #   コイルとの接触を判定
         #===============================================================================================================
+        r = np.sqrt(x**2 + y**2)
+        is_inside_fcoil_0 = np.argwhere((r >= 0.185) & (r <= 0.1850 + 0.1930) & (z >= -.0200) & (z <= .0200))
+        is_inside_fcoil_1 = np.argwhere((r >= 0.185 + 0.0550) & (r <= 0.1850 + 0.1930 - 0.0550) & (z >= -.0750) & (z <= .0750))
+        is_inside_fcoil_2 = np.argwhere(((r - (0.185  + 0.055))**2 + (np.abs(z) - (0.020))**2 <= 0.055**2))
+        is_inside_fcoil_3 = np.argwhere(((r - (0.185 + 0.193 - 0.055))**2 + (np.abs(z) - (0.020))**2 <= 0.055**2))
+        #buf_index = dist_from_cam.__len__()
+        buf_index = []
+        if np.sum(is_inside_fcoil_0)>0:
+            buf_index.append(np.min(is_inside_fcoil_0))
+        if np.sum(is_inside_fcoil_1)>0:
+            buf_index.append(np.min(is_inside_fcoil_1))
+        if np.sum(is_inside_fcoil_2)>0:
+            buf_index.append(np.min(is_inside_fcoil_2))
+        if np.sum(is_inside_fcoil_3)>0:
+            buf_index.append(np.min(is_inside_fcoil_3))
         try:
-            r = np.sqrt(x**2 + y**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere((r >= 0.185) & (r <= 0.1850 + 0.1930) & (z >= -.0200) & (z <= .0200)))-1
-            x[index_is_inside_vacuum_vessel+1:] = np.nan
-            y[index_is_inside_vacuum_vessel+1:] = np.nan
-            z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
+            index_is_inside_fcoil = np.min(buf_index)
+            x[index_is_inside_fcoil+1:] = np.nan
+            y[index_is_inside_fcoil+1:] = np.nan
+            z[index_is_inside_fcoil+1:] = np.nan
+            x_1ref[index_is_inside_fcoil+1:] = np.nan
+            y_1ref[index_is_inside_fcoil+1:] = np.nan
+            z_1ref[index_is_inside_fcoil+1:] = np.nan
         except:
             pass
+        r_1ref = np.sqrt(x_1ref**2 + y_1ref**2)
+        is_inside_fcoil_1ref_0 = np.argwhere((r_1ref >= 0.185) & (r_1ref <= 0.1850 + 0.1930) & (z_1ref >= -.0200) & (z_1ref <= .0200))
+        is_inside_fcoil_1ref_1 = np.argwhere((r_1ref >= 0.185 + 0.0550) & (r_1ref <= 0.1850 + 0.1930 - 0.0550) & (z_1ref >= -.0750) & (z_1ref <= .0750))
+        is_inside_fcoil_1ref_2 = np.argwhere(((r_1ref - (0.185  + 0.055))**2 + (np.abs(z_1ref) - (0.020))**2 <= 0.055**2))
+        is_inside_fcoil_1ref_3 = np.argwhere(((r_1ref - (0.185 + 0.193 - 0.055))**2 + (np.abs(z_1ref) - (0.020))**2 <= 0.055**2))
+        buf_index_1ref = []
+        if np.sum(is_inside_fcoil_1ref_0)>0:
+            buf_index_1ref.append(np.min(is_inside_fcoil_1ref_0))
+        if np.sum(is_inside_fcoil_1ref_1)>0:
+            buf_index_1ref.append(np.min(is_inside_fcoil_1ref_1))
+        if np.sum(is_inside_fcoil_1ref_2)>0:
+            buf_index_1ref.append(np.min(is_inside_fcoil_1ref_2))
+        if np.sum(is_inside_fcoil_1ref_3)>0:
+            buf_index_1ref.append(np.min(is_inside_fcoil_1ref_3))
         try:
-            r = np.sqrt(x**2 + y**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere((r >= 0.185 + 0.0550) & (r <= 0.1850 + 0.1930 - 0.0550) & (z >= -.0750) & (z <= .0750)))-1
-            x[index_is_inside_vacuum_vessel+1:] = np.nan
-            y[index_is_inside_vacuum_vessel+1:] = np.nan
-            z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-        except:
-            pass
-        try:
-            r = np.sqrt(x**2 + y**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere(((r - (0.185  + 0.055))**2 + (z - (0.020))**2 <= 0.055**2)))-1
-            x[index_is_inside_vacuum_vessel+1:] = np.nan
-            y[index_is_inside_vacuum_vessel+1:] = np.nan
-            z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-        except:
-            pass
-        try:
-            r = np.sqrt(x**2 + y**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere(((r - (0.185 + 0.055))**2 + (z + (0.020))**2 <= 0.055**2)))-1
-            x[index_is_inside_vacuum_vessel+1:] = np.nan
-            y[index_is_inside_vacuum_vessel+1:] = np.nan
-            z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-        except:
-            pass
-        try:
-            r = np.sqrt(x**2 + y**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere(((r - (0.185 + 0.193 - 0.055))**2 + (z - (0.020))**2 <= 0.055**2)))-1
-            x[index_is_inside_vacuum_vessel+1:] = np.nan
-            y[index_is_inside_vacuum_vessel+1:] = np.nan
-            z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-        except:
-            pass
-        try:
-            r = np.sqrt(x**2 + y**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere(((r - (0.185 + 0.193 - 0.055))**2 + (z + (0.020))**2 <= 0.055**2)))-1
-            x[index_is_inside_vacuum_vessel+1:] = np.nan
-            y[index_is_inside_vacuum_vessel+1:] = np.nan
-            z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-        except:
-            pass
-        try:
-            r_1ref = np.sqrt(x_1ref**2 + y_1ref**2)
-            index_is_inside_vacuum_vessel = \
-                np.min(np.argwhere((r_1ref >= 0.185) & (r_1ref <= 0.1850 + 0.1930) & (z_1ref >= -.0200) & (z_1ref <= .0200)))-1
-            #index_is_inside_vacuum_vessel = \
-            #    np.min(np.argwhere((r_1ref >= 0.185) & (r_1ref <= 0.1850 + 0.1930) & (z_1ref >= -.0200) & (z_1ref <= .0200) & \
-            #                       (r_1ref >= 0.185 + 0.0550) & (r_1ref <= 0.1850 + 0.1930 - 0.0550) & (z_1ref >= -.0750) & (z_1ref <= .0750) & \
-            #                       ((r_1ref - (0.185  + 0.055))**2 + (z_1ref - (0.020))**2 <= 0.055**2) & \
-            #                       ((r_1ref - (0.185 + 0.055))**2 + (z_1ref + (0.020))**2 <= 0.055**2) & \
-            #                       ((r_1ref - (0.185 + 0.193 - 0.055))**2 + (z_1ref - (0.020))**2 <= 0.055**2) & \
-            #                       ((r_1ref - (0.185 + 0.193 - 0.055))**2 + (z_1ref + (0.020))**2 <= 0.055**2))) - 1
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-        except:
-            pass
-        try:
-            r_1ref = np.sqrt(x_1ref**2 + y_1ref**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere((r_1ref >= 0.185 + 0.0550) & (r_1ref <= 0.1850 + 0.1930 - 0.0550) & (z_1ref >= -.0750) & (z_1ref <= .0750)))-1
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-        except:
-            pass
-        try:
-            r_1ref = np.sqrt(x_1ref**2 + y_1ref**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere(((r_1ref - (0.185  + 0.055))**2 + (z_1ref - (0.020))**2 <= 0.055**2)))-1
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-        except:
-            pass
-        try:
-            r_1ref = np.sqrt(x_1ref**2 + y_1ref**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere(((r_1ref - (0.185 + 0.055))**2 + (z_1ref + (0.020))**2 <= 0.055**2)))-1
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-        except:
-            pass
-        try:
-            r_1ref = np.sqrt(x_1ref**2 + y_1ref**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere(((r_1ref - (0.185 + 0.193 - 0.055))**2 + (z_1ref - (0.020))**2 <= 0.055**2)))-1
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-        except:
-            pass
-        try:
-            r_1ref = np.sqrt(x_1ref**2 + y_1ref**2)
-            index_is_inside_vacuum_vessel = np.min(np.argwhere(((r_1ref - (0.185 + 0.193 - 0.055))**2 + (z_1ref + (0.020))**2 <= 0.055**2)))-1
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
+            index_is_inside_fcoil_1ref = np.min(buf_index_1ref)
+            x_1ref[index_is_inside_fcoil_1ref+1:] = np.nan
+            y_1ref[index_is_inside_fcoil_1ref+1:] = np.nan
+            z_1ref[index_is_inside_fcoil_1ref+1:] = np.nan
         except:
             pass
         #===============================================================================================================
@@ -824,22 +676,38 @@ class ImageReconstruction:
                 #plt.plot(np.sqrt(x**2 + y**2), z)
                 #plt.plot(np.sqrt(x_1ref**2 + y_1ref**2), z_1ref)
                 image_buf[i, j, :] = interp_image(z, r, grid=False)
-                #image_1ref_buf[i, j, :] = reflection_factor*interp_image(z_1ref, r_1ref, grid=False)
-                image_1ref_buf[i, j, :] = interp_image(z_1ref, r_1ref, grid=False)
+                image_1ref_buf[i, j, :] = reflection_factor*interp_image(z_1ref, r_1ref, grid=False)
+                #image_1ref_buf[i, j, :] = interp_image(z_1ref, r_1ref, grid=False)
                 #image_1ref_buf[i, j, :] = reflection_factor
 
         image_buf[np.isnan(image_buf)] = 0
         image_1ref_buf[np.isnan(image_1ref_buf)] = 0
         image = np.sum(image_buf, axis=2)
         image_1ref = np.sum(image_1ref_buf, axis=2)
-        #plt.imshow((image + image_1ref).T, cmap='jet')
-        plt.imshow(image.T, cmap='jet')
+        plt.imshow((image + image_1ref).T, cmap='jet')
+        #plt.imshow(image_1ref.T, cmap='jet')
 
+        #plt.show()
+        plt.savefig("integrated_image_3Dto2D.png")
+
+    def show_animation(self):
+        fig = plt.figure(figsize=(10, 6))
+        params = {
+            'fig': fig,
+            'func': self.plot_3D_ray,
+            'interval': 10,
+            'frames': 10,
+            'repeat': False,
+            'blit': True
+
+        }
+        anime = animation.FuncAnimation(**params)
+        #anime.save('ray_3D.gif', writer='XXX')
         plt.show()
 
-    def plot_3D_ray(self, showRay=True, showVV=False, showFC=False, showLC=False, showCS=False):
+    def plot_3D_ray(self, frame=None, showRay=True, showVV=False, showFC=False, showLC=False, showCS=False):
         # (x, y, z)
-        dist_from_cam = np.linspace(0, 3, 100)
+        dist_from_cam = np.linspace(0, 4, 100)
         fig = plt.figure()
         # 3Dでプロット
         ax = Axes3D(fig)
@@ -851,6 +719,7 @@ class ImageReconstruction:
                     x, y, z, x_1ref, y_1ref, z_1ref,_ = self.ray_trace_3D(dist_from_cam, theta[i], phi[j])
                     #x, y, z, x_1ref, y_1ref, z_1ref,_ = self.ray_trace_3D(dist_from_cam, theta[i], np.pi/20)
                     #x, y, z, x_1ref, y_1ref, z_1ref, _ = self.ray_trace_3D(dist_from_cam, 1*np.pi/10, phi[j])
+                    #x, y, z, x_1ref, y_1ref, z_1ref, _ = self.ray_trace_3D(dist_from_cam, frame*np.pi/20, phi[j])
                     ax.plot(x, y, z, "-", color="#00aa00", ms=4, mew=0.5)
                     ax.plot(x_1ref, y_1ref, z_1ref, "-", color="#aa0000", ms=4, mew=0.5)
         ax.set_aspect('equal')
@@ -885,20 +754,20 @@ class ImageReconstruction:
             ys[1] *= 0.0826
             ax.plot_surface(xs, ys, zs, color='y', alpha=0.2)
 
-        us = np.linspace(0, 1.0 * np.pi, 10)
+        us = np.linspace(0, 1.0 * np.pi, 32)
         #Vacuum Vessel
         if showVV:
-            #zs = np.linspace(-0.35, 0.35, 2)
-            #us, zs = np.meshgrid(us, zs)
-            #xs = 1.0 * np.cos(us)
-            #ys = 1.0 * np.sin(us)
-            #ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
+            zs = np.linspace(-0.35, 0.35, 2)
+            us, zs = np.meshgrid(us, zs)
+            xs = 1.0 * np.cos(us)
+            ys = 1.0 * np.sin(us)
+            ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
 
-            #zs = np.linspace(0.35, 0.53, 10)
-            #us, zs = np.meshgrid(us, zs)
-            #xs = (0.8 + np.sqrt(0.04 - (zs - 0.35)**2)) * np.cos(us)
-            #ys = (0.8 + np.sqrt(0.04 - (zs - 0.35)**2)) * np.sin(us)
-            #ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
+            zs = np.linspace(0.35, 0.53, 10)
+            us, zs = np.meshgrid(us, zs)
+            xs = (0.8 + np.sqrt(0.04 - (zs - 0.35)**2)) * np.cos(us)
+            ys = (0.8 + np.sqrt(0.04 - (zs - 0.35)**2)) * np.sin(us)
+            ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
 
             zs = np.linspace(-0.35, -0.53, 10)
             us, zs = np.meshgrid(us, zs)
@@ -906,11 +775,11 @@ class ImageReconstruction:
             ys = (0.8 + np.sqrt(0.04 - (zs + 0.35)**2)) * np.sin(us)
             ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
 
-            #zs = np.linspace(0.53, 0.66, 2)
-            #us, zs = np.meshgrid(us, zs)
-            #xs = (0.8888889 - 2.7838*(zs-0.53)) * np.cos(us)
-            #ys = (0.8888889 - 2.7838*(zs-0.53)) * np.sin(us)
-            #ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
+            zs = np.linspace(0.53, 0.66, 2)
+            us, zs = np.meshgrid(us, zs)
+            xs = (0.8888889 - 2.7838*(zs-0.53)) * np.cos(us)
+            ys = (0.8888889 - 2.7838*(zs-0.53)) * np.sin(us)
+            ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
 
             zs = np.linspace(-0.53, -0.66, 2)
             us, zs = np.meshgrid(us, zs)
@@ -1010,8 +879,9 @@ if __name__ == '__main__':
     #imrec.plot_projection_image_spline_wrt_1reflection_v3(reflection_factor=0.5)
     #imrec.run()
     #imrec.plot_refractive_indices(2.6580, 2.8125)
-    imrec.plot_3D_ray(showRay=True, showFC=False, showLC=False, showVV=False, showCS=False)
-    #imrec.plot_3Dto2D()
+    #imrec.plot_3D_ray(showRay=False, showFC=False, showLC=False, showVV=True, showCS=False)
+    #imrec.show_animation()
+    imrec.plot_3Dto2D()
 
     elapsed_time = time.time() - start
     print("elapsed_time:{0}".format(elapsed_time) + "[sec]")
