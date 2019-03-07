@@ -3,8 +3,12 @@ import matplotlib.pyplot as plt
 import ne_profile_r2
 import rt1mag as rt1
 import time
+import pandas
+import codecs
+import csv
 #import numba
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from scipy import optimize
 from scipy.interpolate import RectBivariateSpline, interp1d
 from bokeh.plotting import figure, output_file, show, reset_output
 from multiprocessing import Pool
@@ -18,10 +22,10 @@ class ImageReconstruction:
     def __init__(self):
         #self.p_opt_best = [35.210, 6.341, 1.501, 0.544]
         self.p_opt_best = [30, 18, 1.0, 0.5]
-        self.R_cam = 1.2 #[m]
+        self.R_cam = 1.34439317 #[m]
         self.r_num = 100
         self.z_num = 100
-        self.theta_max = np.arcsin(1/self.R_cam)#np.pi/3
+        self.theta_max = np.deg2rad(44)#50.23)#np.arcsin(1/self.R_cam)#np.pi/3
         self.phi_max = self.theta_max/2#np.pi/6
 
     def projection_poroidally(self, theta, phi):
@@ -109,17 +113,17 @@ class ImageReconstruction:
         plt.tight_layout(pad=1.0, w_pad=2.0, h_pad=1.0)
         plt.show()
 
-    def make_ne_image(self, r, z):
+    def make_ne_image(self, r, z, p_opt_best, p_opt_best_2ndPeak):
         r_mesh, z_mesh = np.meshgrid(r, z)
         psi = np.array([list(map(lambda r, z : rt1.psi(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
         #coilcase_truth_table = np.array([list(map(lambda r, z : rt1.check_coilcase(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
         #psi[coilcase_truth_table == True] = 0
-        psix  = rt1.psi(self.p_opt_best[3], 0.0, separatrix=True) # psi上のBが最小となる直線上の密度最大値
+        psix  = rt1.psi(p_opt_best[3], 0.0, separatrix=True) # psi上のBが最小となる直線上の密度最大値
         psi0  = rt1.psi(1.0, 0.0, separatrix=True) # psi at the vacuum chamber
-        ne = np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *self.p_opt_best, psix=psix, psi0=psi0), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
+        ne = np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best, psix=psix, psi0=psi0), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
 
         # For double peak profile
-        p_opt_best_2ndPeak = [20, 17, 0.1, 0.75]
+        #p_opt_best_2ndPeak = [20, 17, 0.1, 0.75]
         psix  = rt1.psi(p_opt_best_2ndPeak[3], 0.0, separatrix=True) # psi上のBが最小となる直線上の密度最大値
         ne += np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best_2ndPeak, psix=psix, psi0=psi0), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
 
@@ -460,6 +464,74 @@ class ImageReconstruction:
 
         return np.arccos(cos_theta_i)
 
+    def ray_trace_3D_broadcast(self, dist_from_cam,THETA, PHI, I_ARRAY):
+        d_dist_from_cam = dist_from_cam[1] - dist_from_cam[0]
+        vec_i = np.array([-np.cos(THETA), np.sin(THETA), np.sin(PHI)])
+        norm_vec_i = np.linalg.norm(vec_i, axis=0, ord=2)
+        x_1ref = np.zeros(dist_from_cam.__len__())
+        y_1ref = np.zeros(dist_from_cam.__len__())
+        z_1ref = np.zeros(dist_from_cam.__len__())
+
+        reflection_factor = 0.0
+
+        x = self.R_cam + d_dist_from_cam*vec_i[0, :, :, :]*I_ARRAY/norm_vec_i
+        y = d_dist_from_cam*vec_i[1, :, :, :]*I_ARRAY/norm_vec_i
+        z = d_dist_from_cam*vec_i[2, :, :, :]*I_ARRAY/norm_vec_i
+        #===============================================================================================================
+        #   真空容器との接触を判定
+        #===============================================================================================================
+        is_inside_vacuum_vessel_0 = np.where((np.abs(z)<0.35) & (np.sqrt(x**2 + y**2)<1.0))
+        is_inside_vacuum_vessel_1 = np.where((np.abs(z)<0.35) & (np.sqrt(x**2 + y**2)>1.0))
+        is_inside_vacuum_vessel_2 = np.where((np.abs(z)>0.35) & (np.abs(z)<0.53) & (np.sqrt(x**2 + y**2)>(0.8 + np.sqrt(0.04 - (np.abs(z) - 0.35)**2))))
+        is_inside_vacuum_vessel_3 = np.where((np.abs(z)>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(np.abs(z)-0.53))))
+        try:
+            #if is_inside_vacuum_vessel_1[0][-1] > is_inside_vacuum_vessel_0[0][0]:
+            #    index_is_inside_vacuum_vessel = np.min(np.where(is_inside_vacuum_vessel_1 > is_inside_vacuum_vessel_0[0][0], is_inside_vacuum_vessel_1, np.inf)) - 1
+            #    reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
+            #    vec_n = np.array([-reflectionpoint[0], -reflectionpoint[1], 0])
+            #    sign_vec_ref = np.array([1, 1, 1])
+            if np.sum(is_inside_vacuum_vessel_2)>0:
+            #elif np.sum(is_inside_vacuum_vessel_2)>0:
+                #reflectionpoint = np.array([x[is_inside_vacuum_vessel_2], y[is_inside_vacuum_vessel_2], z[is_inside_vacuum_vessel_2]])
+                vec_n = np.array([-0.8*x, -0.8*y, 0.35*np.sign(z)])
+                sign_vec_ref = np.array([1, 1, -1])
+            #elif np.sum(is_inside_vacuum_vessel_3)>0:
+            #    index_is_inside_vacuum_vessel = np.min(np.argwhere((np.abs(z)>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(np.abs(z)-0.53))))) - 1
+            #    reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
+            #    sign_vec_ref = np.array([1, -1, 1])
+            #    if(reflectionpoint[0]>0):
+            #        vec_n = np.array([reflectionpoint[0], reflectionpoint[1], -np.sign(reflectionpoint[2])*(np.sqrt(reflectionpoint[0]**2 + reflectionpoint[1]**2)*2.7838)])
+            #    else:
+            #        vec_n = np.array([reflectionpoint[0], reflectionpoint[1], np.sign(reflectionpoint[2])*(np.sqrt(reflectionpoint[0]**2 + reflectionpoint[1]**2)*2.7838)])
+        except:
+            pass
+        try:
+            vec_ref = self.cal_reflection_vector_broadcast(vec_i, vec_n)
+            norm_vec_ref = np.linalg.norm(vec_ref, axis=0)
+            #j_array = np.arange(dist_from_cam.__len__()-index_is_inside_vacuum_vessel)
+            #x[index_is_inside_vacuum_vessel+1:] = np.nan
+            #y[index_is_inside_vacuum_vessel+1:] = np.nan
+            #z[index_is_inside_vacuum_vessel+1:] = np.nan
+            #x_1ref[:index_is_inside_vacuum_vessel] = np.nan
+            #y_1ref[:index_is_inside_vacuum_vessel] = np.nan
+            #z_1ref[:index_is_inside_vacuum_vessel] = np.nan
+            #x_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[0] + d_dist_from_cam*sign_vec_ref[0]*vec_ref[0]*j_array/norm_vec_ref
+            #y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] + d_dist_from_cam*sign_vec_ref[1]*vec_ref[1]*j_array/norm_vec_ref
+            #z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] + d_dist_from_cam*sign_vec_ref[2]*vec_ref[2]*j_array/norm_vec_ref
+            vec_ref_x = vec_ref[0]
+            vec_ref_y = vec_ref[1]
+            vec_ref_z = vec_ref[2]
+            x[is_inside_vacuum_vessel_2] = self.R_cam + d_dist_from_cam*vec_ref_x[is_inside_vacuum_vessel_2]*I_ARRAY[is_inside_vacuum_vessel_2]/norm_vec_ref[is_inside_vacuum_vessel_2]
+            y[is_inside_vacuum_vessel_2] = d_dist_from_cam*vec_ref_y[is_inside_vacuum_vessel_2]*I_ARRAY[is_inside_vacuum_vessel_2]/norm_vec_ref[is_inside_vacuum_vessel_2]
+            z[is_inside_vacuum_vessel_2] = d_dist_from_cam*vec_ref_z[is_inside_vacuum_vessel_2]*I_ARRAY[is_inside_vacuum_vessel_2]/norm_vec_ref[is_inside_vacuum_vessel_2]
+            #injection_angle = self.cal_injection_angle_for2vector(vec_i, vec_n)
+            #R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.6580, 2.8125)
+            #reflection_factor = (R_s + R_p)/2
+        except:
+            pass
+
+        return x, y, z, x_1ref, y_1ref, z_1ref, reflection_factor
+
     def ray_trace_3D(self, dist_from_cam, theta, phi):
         d_dist_from_cam = dist_from_cam[1] - dist_from_cam[0]
         vec_i = np.array([-np.cos(theta), np.sin(theta), np.sin(phi)])
@@ -481,22 +553,18 @@ class ImageReconstruction:
         is_inside_vacuum_vessel_1 = np.where((np.abs(z)<0.35) & (np.sqrt(x**2 + y**2)>1.0))
         is_inside_vacuum_vessel_2 = np.where((np.abs(z)>0.35) & (np.abs(z)<0.53) & (np.sqrt(x**2 + y**2)>(0.8 + np.sqrt(0.04 - (np.abs(z) - 0.35)**2))))
         is_inside_vacuum_vessel_3 = np.where((np.abs(z)>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(np.abs(z)-0.53))))
-        flg_reflection = 0
         try:
             if is_inside_vacuum_vessel_1[0][-1] > is_inside_vacuum_vessel_0[0][0]:
-                flg_reflection += 1
                 index_is_inside_vacuum_vessel = np.min(np.where(is_inside_vacuum_vessel_1 > is_inside_vacuum_vessel_0[0][0], is_inside_vacuum_vessel_1, np.inf)) - 1
                 reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
                 vec_n = np.array([-reflectionpoint[0], -reflectionpoint[1], 0])
                 sign_vec_ref = np.array([1, 1, 1])
             elif np.sum(is_inside_vacuum_vessel_2)>0:
-                flg_reflection += 1
                 index_is_inside_vacuum_vessel = np.min(np.argwhere((np.abs(z)>0.35) & (np.abs(z)<0.53) & (np.sqrt(x**2 + y**2)>(0.8 + np.sqrt(0.04 - (np.abs(z) - 0.35)**2))))) - 1
                 reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
                 vec_n = np.array([-0.8*reflectionpoint[0], -0.8*reflectionpoint[1], 0.35*np.sign(reflectionpoint[2])])
                 sign_vec_ref = np.array([1, 1, -1])
             elif np.sum(is_inside_vacuum_vessel_3)>0:
-                flg_reflection += 1
                 index_is_inside_vacuum_vessel = np.min(np.argwhere((np.abs(z)>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(np.abs(z)-0.53))))) - 1
                 reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
                 sign_vec_ref = np.array([1, -1, 1])
@@ -519,38 +587,15 @@ class ImageReconstruction:
             x_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[0] + d_dist_from_cam*sign_vec_ref[0]*vec_ref[0]*j_array/norm_vec_ref
             y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] + d_dist_from_cam*sign_vec_ref[1]*vec_ref[1]*j_array/norm_vec_ref
             z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] + d_dist_from_cam*sign_vec_ref[2]*vec_ref[2]*j_array/norm_vec_ref
-            reflection_factor = self.cal_injection_angle_for2vector(vec_i, vec_n)
+            injection_angle = self.cal_injection_angle_for2vector(vec_i, vec_n)
+            R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.6580, 2.8125)
+            reflection_factor = (R_s + R_p)/2
         except:
             pass
 
         #===============================================================================================================
         #   コイルとの接触を判定
         #===============================================================================================================
-        r = np.sqrt(x**2 + y**2)
-        is_inside_fcoil_0 = np.argwhere((r >= 0.185) & (r <= 0.1850 + 0.1930) & (z >= -.0200) & (z <= .0200))
-        is_inside_fcoil_1 = np.argwhere((r >= 0.185 + 0.0550) & (r <= 0.1850 + 0.1930 - 0.0550) & (z >= -.0750) & (z <= .0750))
-        is_inside_fcoil_2 = np.argwhere(((r - (0.185  + 0.055))**2 + (np.abs(z) - (0.020))**2 <= 0.055**2))
-        is_inside_fcoil_3 = np.argwhere(((r - (0.185 + 0.193 - 0.055))**2 + (np.abs(z) - (0.020))**2 <= 0.055**2))
-        #buf_index = dist_from_cam.__len__()
-        buf_index = []
-        if np.sum(is_inside_fcoil_0)>0:
-            buf_index.append(np.min(is_inside_fcoil_0))
-        if np.sum(is_inside_fcoil_1)>0:
-            buf_index.append(np.min(is_inside_fcoil_1))
-        if np.sum(is_inside_fcoil_2)>0:
-            buf_index.append(np.min(is_inside_fcoil_2))
-        if np.sum(is_inside_fcoil_3)>0:
-            buf_index.append(np.min(is_inside_fcoil_3))
-        try:
-            index_is_inside_fcoil = np.min(buf_index)
-            x[index_is_inside_fcoil+1:] = np.nan
-            y[index_is_inside_fcoil+1:] = np.nan
-            z[index_is_inside_fcoil+1:] = np.nan
-            x_1ref[index_is_inside_fcoil+1:] = np.nan
-            y_1ref[index_is_inside_fcoil+1:] = np.nan
-            z_1ref[index_is_inside_fcoil+1:] = np.nan
-        except:
-            pass
         r_1ref = np.sqrt(x_1ref**2 + y_1ref**2)
         is_inside_fcoil_1ref_0 = np.argwhere((r_1ref >= 0.185) & (r_1ref <= 0.1850 + 0.1930) & (z_1ref >= -.0200) & (z_1ref <= .0200))
         is_inside_fcoil_1ref_1 = np.argwhere((r_1ref >= 0.185 + 0.0550) & (r_1ref <= 0.1850 + 0.1930 - 0.0550) & (z_1ref >= -.0750) & (z_1ref <= .0750))
@@ -572,18 +617,82 @@ class ImageReconstruction:
             z_1ref[index_is_inside_fcoil_1ref+1:] = np.nan
         except:
             pass
+        r = np.sqrt(x**2 + y**2)
+        is_inside_fcoil_0 = np.argwhere((r >= 0.185) & (r <= 0.1850 + 0.1930) & (z >= -.0200) & (z <= .0200))
+        is_inside_fcoil_1 = np.argwhere((r >= 0.185 + 0.0550) & (r <= 0.1850 + 0.1930 - 0.0550) & (z >= -.0750) & (z <= .0750))
+        is_inside_fcoil_2 = np.argwhere(((r - (0.185  + 0.055))**2 + (np.abs(z) - (0.020))**2 <= 0.055**2))
+        is_inside_fcoil_3 = np.argwhere(((r - (0.185 + 0.193 - 0.055))**2 + (np.abs(z) - (0.020))**2 <= 0.055**2))
+        #buf_index = dist_from_cam.__len__()
+        buf_index = []
+        buf_where_in_fcoil = []
+        if np.sum(is_inside_fcoil_0)>0:
+            buf_index.append(np.min(is_inside_fcoil_0))
+            buf_where_in_fcoil.append(0)
+        if np.sum(is_inside_fcoil_1)>0:
+            buf_index.append(np.min(is_inside_fcoil_1))
+            buf_where_in_fcoil.append(1)
+        if np.sum(is_inside_fcoil_2)>0:
+            buf_index.append(np.min(is_inside_fcoil_2))
+            buf_where_in_fcoil.append(2)
+        if np.sum(is_inside_fcoil_3)>0:
+            buf_index.append(np.min(is_inside_fcoil_3))
+            buf_where_in_fcoil.append(3)
+        try:
+            index_is_inside_fcoil = np.min(buf_index)
+            where_in_fcoil = buf_where_in_fcoil[np.argmin(buf_index)]
+            if where_in_fcoil == 0:
+                reflectionpoint = np.array([x[index_is_inside_fcoil], y[index_is_inside_fcoil], z[index_is_inside_fcoil]])
+                vec_n = np.array([reflectionpoint[0], reflectionpoint[1], 0])
+            elif where_in_fcoil == 1:
+                reflectionpoint = np.array([x[index_is_inside_fcoil], y[index_is_inside_fcoil], z[index_is_inside_fcoil]])
+                vec_n = np.array([-reflectionpoint[0], -reflectionpoint[1], 0])
+            elif where_in_fcoil == 2:
+                reflectionpoint = np.array([x[index_is_inside_fcoil], y[index_is_inside_fcoil], z[index_is_inside_fcoil]])
+                vec_n = np.array([-0.24*reflectionpoint[0], -0.24*reflectionpoint[1], 0.02*np.sign(reflectionpoint[2])])
+            elif where_in_fcoil == 3:
+                reflectionpoint = np.array([x[index_is_inside_fcoil], y[index_is_inside_fcoil], z[index_is_inside_fcoil]])
+                vec_n = np.array([0.323*reflectionpoint[0], 0.323*reflectionpoint[1], 0.02*np.sign(reflectionpoint[2])])
+
+            vec_ref = self.cal_reflection_vector(vec_i, vec_n)
+            norm_vec_ref = np.linalg.norm(vec_ref)
+            j_array = np.arange(dist_from_cam.__len__()-index_is_inside_fcoil)
+            x[index_is_inside_fcoil+1:] = np.nan
+            y[index_is_inside_fcoil+1:] = np.nan
+            z[index_is_inside_fcoil+1:] = np.nan
+            x_1ref[:index_is_inside_fcoil] = np.nan
+            y_1ref[:index_is_inside_fcoil] = np.nan
+            z_1ref[:index_is_inside_fcoil] = np.nan
+            x_1ref[index_is_inside_fcoil:] = reflectionpoint[0] + d_dist_from_cam*vec_ref[0]*j_array/norm_vec_ref
+            y_1ref[index_is_inside_fcoil:] = reflectionpoint[1] + d_dist_from_cam*vec_ref[1]*j_array/norm_vec_ref
+            z_1ref[index_is_inside_fcoil:] = reflectionpoint[2] + d_dist_from_cam*vec_ref[2]*j_array/norm_vec_ref
+            injection_angle = self.cal_injection_angle_for2vector(vec_i, vec_n)
+            R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.6580, 2.8125)
+            reflection_factor = (R_s + R_p)/2
+        except:
+            pass
         #===============================================================================================================
         #   センタースタックとの接触を判定
         #===============================================================================================================
         try:
             r = np.sqrt(x**2 + y**2)
             index_is_inside_vacuum_vessel = np.min(np.argwhere((r <= 0.0826) & (z >= -.6600) & (z <= .6600)))-1
+            reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
+            vec_n = np.array([-reflectionpoint[0], -reflectionpoint[1], 0])
+            vec_ref = self.cal_reflection_vector(vec_i, vec_n)
+            norm_vec_ref = np.linalg.norm(vec_ref)
+            j_array = np.arange(dist_from_cam.__len__()-index_is_inside_vacuum_vessel)
             x[index_is_inside_vacuum_vessel+1:] = np.nan
             y[index_is_inside_vacuum_vessel+1:] = np.nan
             z[index_is_inside_vacuum_vessel+1:] = np.nan
-            x_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            y_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
-            z_1ref[index_is_inside_vacuum_vessel+1:] = np.nan
+            x_1ref[:index_is_inside_vacuum_vessel+1] = np.nan
+            y_1ref[:index_is_inside_vacuum_vessel+1] = np.nan
+            z_1ref[:index_is_inside_vacuum_vessel+1] = np.nan
+            x_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[0] + d_dist_from_cam*vec_ref[0]*j_array/norm_vec_ref
+            y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] + d_dist_from_cam*vec_ref[1]*j_array/norm_vec_ref
+            z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] + d_dist_from_cam*vec_ref[2]*j_array/norm_vec_ref
+            injection_angle = self.cal_injection_angle_for2vector(vec_i, vec_n)
+            R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.6580, 2.8125)
+            reflection_factor = (R_s + R_p)/2
         except:
             pass
         try:
@@ -633,7 +742,6 @@ class ImageReconstruction:
         #    pass
 
         return x, y, z, x_1ref, y_1ref, z_1ref, reflection_factor
-        #return x*is_inside_vacuum_vessel, y*is_inside_vacuum_vessel, z*is_inside_vacuum_vessel
 
     def cal_injection_angle_for2vector(self, vec_i, vec_n):
         inner = np.inner(vec_i, -vec_n)
@@ -643,10 +751,18 @@ class ImageReconstruction:
         c = inner/norm
         #injection_angle = np.arccos(np.clip(c, 0, 1.0))
         injection_angle = np.arccos(c)
-        R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.6580, 2.8125)
-        reflection_factor = (R_s + R_p)/2
 
-        return reflection_factor
+        return injection_angle
+
+    def cal_reflection_vector_broadcast(self, vec_i, vec_n):
+        """
+        入射ベクトルと法線ベクトルを入力として，反射ベクトルを返します
+        :param vec_i:入射ベクトル
+        :param vec_n: 反射ベクトル
+        :return:
+        """
+        norm_vec_n = vec_n/np.linalg.norm(vec_n, axis=0)
+        return vec_i - 2*(vec_i[0]*vec_n[0]+vec_i[1]*vec_n[1]+vec_i[2]*vec_n[2])*norm_vec_n
 
     def cal_reflection_vector(self, vec_i, vec_n):
         """
@@ -658,37 +774,106 @@ class ImageReconstruction:
         norm_vec_n = vec_n/np.linalg.norm(vec_n)
         return vec_i - 2*np.dot(vec_i, norm_vec_n)*norm_vec_n
 
-    def plot_3Dto2D(self):
-        dist_from_cam = np.linspace(0, 3, 100)
+    def plot_3Dto2D_broadcast(self):
+        dist_from_cam = np.linspace(0, 2.5, 125)
         theta = self.theta_max*np.arange(self.r_num)/self.r_num
         phi = self.phi_max - 2*self.phi_max*np.arange(self.z_num)/self.z_num
+        i_array = np.arange(dist_from_cam.__len__())
+        THETA, PHI, I_ARRAY = np.meshgrid(theta, phi, i_array)
         r_image = np.linspace(0, 1, self.r_num)
         z_image = np.linspace(-0.5, 0.5, self.z_num)
         image = self.make_ne_image(r_image, z_image)
         interp_image = RectBivariateSpline(z_image, r_image, image)
+        #image_buf = np.zeros((self.r_num, self.z_num, dist_from_cam.__len__()))
+        #image_1ref_buf = np.zeros((self.r_num, self.z_num, dist_from_cam.__len__()))
+        x, y, z, x_1ref, y_1ref, z_1ref, reflection_factor = self.ray_trace_3D_broadcast(dist_from_cam, THETA, PHI, I_ARRAY)
+        r = np.sqrt(x**2 + y**2)
+        r_1ref = np.sqrt(x_1ref**2 + y_1ref**2)
+        image_buf = interp_image(z, r, grid=False)
+        image_1ref_buf = reflection_factor*interp_image(z_1ref, r_1ref, grid=False)
+        image_buf[np.isnan(image_buf)] = 0
+        image_1ref_buf[np.isnan(image_1ref_buf)] = 0
+        image = np.sum(image_buf, axis=2)
+        image_1ref = np.sum(image_1ref_buf, axis=0)
+        #plt.imshow((image + image_1ref), cmap='jet')
+        plt.imshow(image, cmap='jet')
+
+        plt.show()
+        #plt.savefig("integrated_image_3Dto2D.png")
+
+    def plot_3Dto2D(self, p_opt_best, p_opt_best_2ndPeak):
+        dist_from_cam = np.linspace(0, 5, 250)
+        theta = self.theta_max*np.arange(self.r_num)/self.r_num
+        phi = self.phi_max - 2*self.phi_max*np.arange(self.z_num)/self.z_num
+        r_image = np.linspace(0, 1, self.r_num)
+        z_image = np.linspace(-0.5, 0.5, self.z_num)
+        image_local = self.make_ne_image(r_image, z_image, p_opt_best, p_opt_best_2ndPeak)
+        plt.figure(figsize=(16,12))
+        plt.subplot(1,2,1)
+        plt.imshow(image_local[::-1,:], cmap='jet', vmax=np.max(image_local[:np.int(0.8*self.r_num), :]))
+        plt.title("1st: %s\n2nd: %s\nLocal" % (p_opt_best, p_opt_best_2ndPeak))
+        interp_image = RectBivariateSpline(z_image, r_image, image_local)
         image_buf = np.zeros((self.r_num, self.z_num, dist_from_cam.__len__()))
         image_1ref_buf = np.zeros((self.r_num, self.z_num, dist_from_cam.__len__()))
+        injection_angle, relative_illumination = self.load_relative_illumination()
+        interp_relative_illumination = interp1d(injection_angle, relative_illumination, kind='quadratic')
         for i in range(self.r_num):
             for j in range(self.z_num):
                 x, y, z, x_1ref, y_1ref, z_1ref, reflection_factor = self.ray_trace_3D(dist_from_cam, theta[i], phi[j])
+                vec_i = np.array([-np.cos(theta[i]), np.sin(theta[i]), np.sin(phi[j])])
+                #injection_angle = self.cal_injection_angle_for2vector(vec_i, np.array([-np.cos(self.theta_max/2), np.sin(self.theta_max/2), 0]))
+                #try:
+                #    relative_illumination = interp_relative_illumination(injection_angle)
+                #except:
+                #    relative_illumination = 1.0
                 r = np.sqrt(x**2 + y**2)
                 r_1ref = np.sqrt(x_1ref**2 + y_1ref**2)
                 #plt.plot(np.sqrt(x**2 + y**2), z)
                 #plt.plot(np.sqrt(x_1ref**2 + y_1ref**2), z_1ref)
                 image_buf[i, j, :] = interp_image(z, r, grid=False)
                 image_1ref_buf[i, j, :] = reflection_factor*interp_image(z_1ref, r_1ref, grid=False)
+                #image_buf[i, j, :] = relative_illumination*interp_image(z, r, grid=False)
+                #image_1ref_buf[i, j, :] = relative_illumination*reflection_factor*interp_image(z_1ref, r_1ref, grid=False)
                 #image_1ref_buf[i, j, :] = interp_image(z_1ref, r_1ref, grid=False)
                 #image_1ref_buf[i, j, :] = reflection_factor
+                #image_1ref_buf[i, j, :] = relative_illumination/dist_from_cam.__len__()
 
         image_buf[np.isnan(image_buf)] = 0
         image_1ref_buf[np.isnan(image_1ref_buf)] = 0
         image = np.sum(image_buf, axis=2)
         image_1ref = np.sum(image_1ref_buf, axis=2)
+        plt.subplot(1,2,2)
+        #plt.imshow(image.T, cmap='jet')
         plt.imshow((image + image_1ref).T, cmap='jet')
-        #plt.imshow(image_1ref.T, cmap='jet')
+        plt.title("Projection")
 
+        plt.tight_layout()
         #plt.show()
-        plt.savefig("integrated_image_3Dto2D.png")
+        plt.savefig("SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                    (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3],\
+                     p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
+        np.savez("SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
+                 (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3],\
+                  p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]),\
+                  image_local=image_local, image=image, image_1ref=image_1ref)
+
+    def load_image(self, p_opt_best, p_opt_best_2ndPeak):
+        images = np.load("SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
+                 (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                  p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
+        image_local = images['image_local']
+        image = images['image']
+        image_1ref = images['image_1ref']
+
+        plt.figure(figsize=(16,12))
+        plt.subplot(1,2,1)
+        plt.imshow(image_local[::-1,:], cmap='jet')
+        plt.title("1st: %s\n2nd: %s\nLocal" % (p_opt_best, p_opt_best_2ndPeak))
+        plt.subplot(1,2,2)
+        plt.imshow((image + image_1ref).T, cmap='jet')
+        plt.title("Projection")
+        plt.show()
+
 
     def show_animation(self):
         fig = plt.figure(figsize=(10, 6))
@@ -705,9 +890,33 @@ class ImageReconstruction:
         #anime.save('ray_3D.gif', writer='XXX')
         plt.show()
 
+    def plot_3D_ray_broadcast(self, frame=None, showRay=True, showVV=False, showFC=False, showLC=False, showCS=False):
+        # (x, y, z)
+        dist_from_cam = np.linspace(0, 5, 125)
+        theta = self.theta_max*np.arange(self.r_num)/self.r_num
+        phi = self.phi_max - 2*self.phi_max*np.arange(self.z_num)/self.z_num
+        i_array = np.arange(dist_from_cam.__len__())
+        THETA, PHI, I_ARRAY = np.meshgrid(theta, phi, i_array)
+        x, y, z, x_1ref, y_1ref, z_1ref, reflection_factor = self.ray_trace_3D_broadcast(dist_from_cam, THETA, PHI, I_ARRAY)
+        fig = plt.figure()
+        # 3Dでプロット
+        ax = Axes3D(fig)
+        if showRay:
+            for i in range(self.r_num):
+                ax.plot(x[i,i,:], y[i,i,:], z[i,i,:], "-", color="#00aa00", ms=1, mew=0.1)
+            #ax.plot(x_1ref, y_1ref, z_1ref, "-", color="#aa0000", ms=1, mew=0.1)
+        ax.set_aspect('equal')
+        # 軸ラベル
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+
+        set_axes_equal(ax)
+        plt.show()
+
     def plot_3D_ray(self, frame=None, showRay=True, showVV=False, showFC=False, showLC=False, showCS=False):
         # (x, y, z)
-        dist_from_cam = np.linspace(0, 4, 100)
+        dist_from_cam = np.linspace(0, 3, 125)
         fig = plt.figure()
         # 3Dでプロット
         ax = Axes3D(fig)
@@ -717,11 +926,12 @@ class ImageReconstruction:
             for i in range(self.r_num):
                 for j in range(self.z_num):
                     x, y, z, x_1ref, y_1ref, z_1ref,_ = self.ray_trace_3D(dist_from_cam, theta[i], phi[j])
-                    #x, y, z, x_1ref, y_1ref, z_1ref,_ = self.ray_trace_3D(dist_from_cam, theta[i], np.pi/20)
-                    #x, y, z, x_1ref, y_1ref, z_1ref, _ = self.ray_trace_3D(dist_from_cam, 1*np.pi/10, phi[j])
+                    #x, y, z, x_1ref, y_1ref, z_1ref,_ = self.ray_trace_3D(dist_from_cam, theta[i], np.pi/50)
+                    #x, y, z, x_1ref, y_1ref, z_1ref,_ = self.ray_trace_3D(dist_from_cam, theta[i], 0)
+                    #x, y, z, x_1ref, y_1ref, z_1ref, _ = self.ray_trace_3D(dist_from_cam, 0*np.pi/20, phi[j])
                     #x, y, z, x_1ref, y_1ref, z_1ref, _ = self.ray_trace_3D(dist_from_cam, frame*np.pi/20, phi[j])
-                    ax.plot(x, y, z, "-", color="#00aa00", ms=4, mew=0.5)
-                    ax.plot(x_1ref, y_1ref, z_1ref, "-", color="#aa0000", ms=4, mew=0.5)
+                    ax.plot(x, y, z, "-", color="#00aa00", ms=1, mew=0.1)
+                    ax.plot(x_1ref, y_1ref, z_1ref, "-", color="#aa0000", ms=1, mew=0.1)
         ax.set_aspect('equal')
         # 軸ラベル
         ax.set_xlabel('x')
@@ -761,31 +971,31 @@ class ImageReconstruction:
             us, zs = np.meshgrid(us, zs)
             xs = 1.0 * np.cos(us)
             ys = 1.0 * np.sin(us)
-            ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
+            ax.plot_surface(xs, ys, zs, color='b', alpha=0.2)
 
             zs = np.linspace(0.35, 0.53, 10)
             us, zs = np.meshgrid(us, zs)
             xs = (0.8 + np.sqrt(0.04 - (zs - 0.35)**2)) * np.cos(us)
             ys = (0.8 + np.sqrt(0.04 - (zs - 0.35)**2)) * np.sin(us)
-            ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
+            ax.plot_surface(xs, ys, zs, color='b', alpha=0.2)
 
             zs = np.linspace(-0.35, -0.53, 10)
             us, zs = np.meshgrid(us, zs)
             xs = (0.8 + np.sqrt(0.04 - (zs + 0.35)**2)) * np.cos(us)
             ys = (0.8 + np.sqrt(0.04 - (zs + 0.35)**2)) * np.sin(us)
-            ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
+            ax.plot_surface(xs, ys, zs, color='b', alpha=0.2)
 
             zs = np.linspace(0.53, 0.66, 2)
             us, zs = np.meshgrid(us, zs)
             xs = (0.8888889 - 2.7838*(zs-0.53)) * np.cos(us)
             ys = (0.8888889 - 2.7838*(zs-0.53)) * np.sin(us)
-            ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
+            ax.plot_surface(xs, ys, zs, color='b', alpha=0.2)
 
             zs = np.linspace(-0.53, -0.66, 2)
             us, zs = np.meshgrid(us, zs)
             xs = (0.8888889 + 2.7838*(zs+0.53)) * np.cos(us)
             ys = (0.8888889 + 2.7838*(zs+0.53)) * np.sin(us)
-            ax.plot_surface(xs, ys, zs, color='b', alpha=0.3)
+            ax.plot_surface(xs, ys, zs, color='b', alpha=0.2)
 
         ##Coilcase
         us = np.linspace(0, 2.0 * np.pi, 32)
@@ -839,6 +1049,47 @@ class ImageReconstruction:
         set_axes_equal(ax)
         plt.show()
 
+    def load_relative_illumination(self):
+        filepath = 'illuminatiouCIS.csv'
+        with codecs.open(filepath, 'r', 'Shift-JIS', 'ignore') as f:
+            data = pandas.read_csv(filepath)
+        #with open(filepath) as f:
+        #    data = list(csv.reader(f))
+        arr_data = np.array(data)
+        relative_illumination = arr_data[:, 1]
+        injection_angle = np.deg2rad(arr_data[:, 0])
+
+        #parameter0 = 0
+        #popt, pcov = optimize.curve_fit(fit_func_relative_illumination, injection_angle, relative_illumination)
+        #plt.plot(injection_angle, fit_func_relative_illumination(injection_angle, *popt))
+        #plt.plot(injection_angle, relative_illumination)
+        #plt.show()
+        #print("LOADED %s", filepath)
+        return injection_angle, relative_illumination
+
+    def load_relative_illumination_2D(self):
+        filepath = 'RelativeIllumination_100to2000d100mm.csv'
+        with codecs.open(filepath, 'r', 'Shift-JIS', 'ignore') as f:
+            data = pandas.read_csv(filepath)
+        arr_data = np.array(data)
+        relative_illumination = arr_data[:, 1]
+        #injection_angle = np.deg2rad(arr_data[:, 0])
+        injection_angle = arr_data[:, 0]
+
+        distance = np.linspace(100, 2000, 20)
+        for i in range(20):
+            plt.plot(injection_angle, arr_data[:, 1+4*i], label=('%d mm' % distance[i]))
+        plt.legend(title='Distance from \nL1 focal position', fontsize=12)
+        plt.xlabel('Injection Angle [degree]')
+        plt.ylabel('Relative Illumination Ratio')
+        plt.ylim(0, 1.1)
+        plt.show()
+        #print("LOADED %s", filepath)
+
+def fit_func_relative_illumination(x, a):
+    return a*np.cos(x)**4
+
+
 def set_axes_radius(ax, origin, radius):
     ax.set_xlim3d([origin[0] - radius, origin[0] + radius])
     ax.set_ylim3d([origin[1] - radius, origin[1] + radius])
@@ -863,10 +1114,25 @@ def set_axes_equal(ax):
     radius = 0.5 * np.max(np.abs(limits[:, 1] - limits[:, 0]))
     set_axes_radius(ax, origin, radius)
 
+def make_line_integrated_images(num_loop):
+    imrec = ImageReconstruction()
+    for i1 in range(num_loop):
+        for i2 in range(num_loop):
+            for i3 in range(num_loop):
+                for j0 in range(num_loop):
+                    for j1 in range(num_loop):
+                        for j2 in range(num_loop):
+                            for j3 in range(num_loop):
+                                p_opt_best = [1, 1 + 20*i1/num_loop, 0.1 + 2.0*i2/num_loop, 0.38 + 0.32*i3/num_loop]
+                                p_opt_best_2ndPeak = [10**(-1 + 2*j0/num_loop), 1 + 20*j1/num_loop, 0.1 + 2.0*j2/num_loop, 0.70 + 0.25*i3/num_loop]
+                                imrec.plot_3Dto2D(p_opt_best, p_opt_best_2ndPeak)
+
 if __name__ == '__main__':
     start = time.time()
 
-    imrec = ImageReconstruction()
+    make_line_integrated_images(2)
+
+    #imrec = ImageReconstruction()
     #imrec.projection_poroidally(1.2, np.pi/4, np.pi/4)
     #imrec.projection_poroidally(0.9, 0, 0)
     #imrec.plot_projection()
@@ -879,9 +1145,14 @@ if __name__ == '__main__':
     #imrec.plot_projection_image_spline_wrt_1reflection_v3(reflection_factor=0.5)
     #imrec.run()
     #imrec.plot_refractive_indices(2.6580, 2.8125)
-    #imrec.plot_3D_ray(showRay=False, showFC=False, showLC=False, showVV=True, showCS=False)
+    #imrec.plot_3D_ray(showRay=True, showFC=True, showLC=True, showVV=True, showCS=True)
+    #imrec.plot_3D_ray_broadcast(showRay=True, showFC=False, showLC=False, showVV=False, showCS=False)
+    #imrec.load_relative_illumination_2D()
     #imrec.show_animation()
-    imrec.plot_3Dto2D()
+    #imrec.plot_3Dto2D_broadcast()
+    #imrec.plot_3Dto2D(p_opt_best=[30, 18, 1.0, 0.5], p_opt_best_2ndPeak=[20, 17, 0.1, 0.75])
+    #imrec.load_image(p_opt_best=[30, 18, 1.0, 0.5], p_opt_best_2ndPeak=[20, 17, 0.1, 0.75])
+    #imrec.load_relative_illumination()
 
     elapsed_time = time.time() - start
     print("elapsed_time:{0}".format(elapsed_time) + "[sec]")
