@@ -795,8 +795,8 @@ class ImageReconstruction:
         image_1ref_buf[np.isnan(image_1ref_buf)] = 0
         image = np.sum(image_buf, axis=2)
         image_1ref = np.sum(image_1ref_buf, axis=0)
-        #plt.imshow((image + image_1ref), cmap='jet')
-        plt.imshow(image, cmap='jet')
+        #plt.imshow((image + image_1ref), cmap='jet', interpolation='none')
+        plt.imshow(image, cmap='jet', interpolation='none')
 
         plt.show()
         #plt.savefig("integrated_image_3Dto2D.png")
@@ -810,13 +810,15 @@ class ImageReconstruction:
         image_local = self.make_ne_image(r_image, z_image, p_opt_best, p_opt_best_2ndPeak)
         plt.figure(figsize=(16,12))
         plt.subplot(1,2,1)
-        plt.imshow(image_local[::-1,:], cmap='jet', vmax=np.max(image_local[:np.int(0.8*self.r_num), :]))
-        plt.title("1st: %s\n2nd: %s\nLocal" % (p_opt_best, p_opt_best_2ndPeak))
+        plt.imshow(image_local[::-1,:], cmap='jet', vmax=np.max(image_local[:np.int(0.8*self.r_num), :]), interpolation='none')
+        plt.title("1st: [%d, %d, %.2f, %.2f]\n2nd: [%.2f, %d, %.2f, %.2f]\nLocal" % \
+                  (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                   p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
         interp_image = RectBivariateSpline(z_image, r_image, image_local)
         image_buf = np.zeros((self.r_num, self.z_num, dist_from_cam.__len__()))
         image_1ref_buf = np.zeros((self.r_num, self.z_num, dist_from_cam.__len__()))
-        injection_angle, relative_illumination = self.load_relative_illumination()
-        interp_relative_illumination = interp1d(injection_angle, relative_illumination, kind='quadratic')
+        #injection_angle, relative_illumination = self.load_relative_illumination()
+        #interp_relative_illumination = interp1d(injection_angle, relative_illumination, kind='quadratic')
         for i in range(self.r_num):
             for j in range(self.z_num):
                 x, y, z, x_1ref, y_1ref, z_1ref, reflection_factor = self.ray_trace_3D(dist_from_cam, theta[i], phi[j])
@@ -844,7 +846,7 @@ class ImageReconstruction:
         image_1ref = np.sum(image_1ref_buf, axis=2)
         plt.subplot(1,2,2)
         #plt.imshow(image.T, cmap='jet')
-        plt.imshow((image + image_1ref).T, cmap='jet')
+        plt.imshow((image + image_1ref).T, cmap='jet', interpolation='none')
         plt.title("Projection")
 
         plt.tight_layout()
@@ -855,7 +857,7 @@ class ImageReconstruction:
         np.savez("SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
                  (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3],\
                   p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]),\
-                  image_local=image_local, image=image, image_1ref=image_1ref)
+                  image_local=image_local, image=image, image_1ref=image_1ref, p_opt_best=p_opt_best, p_opt_best_2ndPeak=p_opt_best_2ndPeak, dist_from_cam=dist_from_cam)
 
     def load_image(self, p_opt_best, p_opt_best_2ndPeak):
         images = np.load("SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
@@ -1114,9 +1116,19 @@ def set_axes_equal(ax):
     radius = 0.5 * np.max(np.abs(limits[:, 1] - limits[:, 0]))
     set_axes_radius(ax, origin, radius)
 
-def make_line_integrated_images(num_loop):
+def make_line_integrated_images(num_loop, frame=None, num_Process=None):
     imrec = ImageReconstruction()
-    for i1 in range(num_loop):
+    num = 0
+    if num_Process > 1:
+        st_loop = np.int(num_loop*frame/num_Process)
+        ed_loop = np.int(num_loop*(frame+1)/num_Process)
+    else:
+        st_loop = 0
+        ed_loop = num_loop
+        frame = 0
+        num_Process = 1
+
+    for i1 in range(st_loop, ed_loop):
         for i2 in range(num_loop):
             for i3 in range(num_loop):
                 for j0 in range(num_loop):
@@ -1124,13 +1136,47 @@ def make_line_integrated_images(num_loop):
                         for j2 in range(num_loop):
                             for j3 in range(num_loop):
                                 p_opt_best = [1, 1 + 20*i1/num_loop, 0.1 + 2.0*i2/num_loop, 0.38 + 0.32*i3/num_loop]
-                                p_opt_best_2ndPeak = [10**(-1 + 2*j0/num_loop), 1 + 20*j1/num_loop, 0.1 + 2.0*j2/num_loop, 0.70 + 0.25*i3/num_loop]
+                                p_opt_best_2ndPeak = [10**(-1 + 2*j0/num_loop), 1 + 20*j1/num_loop, 0.1 + 2.0*j2/num_loop, 0.70 + 0.25*j3/num_loop]
                                 imrec.plot_3Dto2D(p_opt_best, p_opt_best_2ndPeak)
+                                num+=1
+                                print('Progress (%d/%d): %d/%d (%.2f percent)' % (frame+1, num_Process, num, num_loop**7/num_Process, 100*num*num_Process/num_loop**7))
+
+def png2video(num_loop):
+    import cv2
+    fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+    video = cv2.VideoWriter('video.mp4', fourcc, 20.0, (640, 480))
+
+    for j0 in range(num_loop):
+        for i1 in range(num_loop):
+            for i2 in range(num_loop):
+                for i3 in range(num_loop):
+                    for j1 in range(num_loop):
+                        for j2 in range(num_loop):
+                            for j3 in range(num_loop):
+                                try:
+                                    p_opt_best = [1, 1 + 20*i1/num_loop, 0.1 + 2.0*i2/num_loop, 0.38 + 0.32*i3/num_loop]
+                                    p_opt_best_2ndPeak = [10**(-1 + 2*j0/num_loop), 1 + 20*j1/num_loop, 0.1 + 2.0*j2/num_loop, 0.70 + 0.25*j3/num_loop]
+                                    img = cv2.imread("dataset_SimCIS/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                                                (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                                                 p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
+                                    img = cv2.resize(img, (640, 480))
+                                    video.write(img)
+                                    print(i1, i2, i3, j0, j1, j2, j3)
+                                except:
+                                    print("No file: dataset_SimCIS/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                                                     (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                                                      p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
+                                    print(i1, i2, i3, j0, j1, j2, j3)
+                                    pass
+
+    video.release()
+
 
 if __name__ == '__main__':
     start = time.time()
 
-    make_line_integrated_images(2)
+    #make_line_integrated_images(num_loop=2, frame=1, num_Process=2)
+    png2video(2)
 
     #imrec = ImageReconstruction()
     #imrec.projection_poroidally(1.2, np.pi/4, np.pi/4)
