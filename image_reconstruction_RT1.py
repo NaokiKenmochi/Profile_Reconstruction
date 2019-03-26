@@ -93,18 +93,20 @@ class ImageReconstruction:
         f.image(image=[ne], x=0, y=-0.5, dw=1, dh=1, palette='Spectral11')
         show(f)
 
-    def plot_local_image(self):
-        levels = [0.005, 0.006, 0.007, 0.008, 0.009, 0.01, 0.011, 0.012, 0.013, 0.014]
+    def plot_local_image(self, p_opt_best, p_opt_best_2ndPeak):
+        #levels = [0.005, 0.006, 0.007, 0.008, 0.009, 0.01, 0.011, 0.012, 0.013, 0.014]
+        levels = [0.005, 0.006, 0.0063767, 0.007, 0.008, 0.009, 0.01, 0.011, 0.012, 0.013, 0.014]
         #r = np.linspace(0.1, 1, self.r_num)
         #z = np.linspace(-0.4, 0.4, self.z_num)
         r = np.linspace(0.0, 1, self.r_num)
         z = np.linspace(-0.5, 0.5, self.z_num)
         r_mesh, z_mesh = np.meshgrid(r, z)
-        psi = np.array([list(map(lambda r, z : rt1.psi(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
+        psi = np.array([list(map(lambda r, z : rt1.psi(r, z, separatrix=True), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
         coilcase_truth_table = np.array([list(map(lambda r, z : rt1.check_coilcase(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
         psi[coilcase_truth_table == True] = 0
-        ne = self.make_ne_image(r, z)
-        plt.imshow(ne, cmap='jet', origin='lower', extent=(r.min(), r.max(), z.min(), z.max()), vmax=35)
+        ne = self.make_ne_image(r, z, p_opt_best, p_opt_best_2ndPeak)
+        #plt.imshow(ne, cmap='jet', origin='lower', extent=(r.min(), r.max(), z.min(), z.max()), vmax=35)
+        plt.imshow(ne, cmap='jet', origin='lower', extent=(r.min(), r.max(), z.min(), z.max()))
         plt.colorbar()
         plt.contour(r_mesh, z_mesh, psi, colors=['white'], linewidths=0.5, levels=levels)
         plt.title(r'$n_\mathrm{e}$')
@@ -115,17 +117,23 @@ class ImageReconstruction:
 
     def make_ne_image(self, r, z, p_opt_best, p_opt_best_2ndPeak):
         r_mesh, z_mesh = np.meshgrid(r, z)
-        psi = np.array([list(map(lambda r, z : rt1.psi(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
+        psi = np.array([list(map(lambda r, z : rt1.psi(r, z, separatrix=True), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
         #coilcase_truth_table = np.array([list(map(lambda r, z : rt1.check_coilcase(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
         #psi[coilcase_truth_table == True] = 0
         psix  = rt1.psi(p_opt_best[3], 0.0, separatrix=True) # psi上のBが最小となる直線上の密度最大値
         psi0  = rt1.psi(1.0, 0.0, separatrix=True) # psi at the vacuum chamber
-        ne = np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best, psix=psix, psi0=psi0), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
+        #psi0 = 0.002
+        ne = np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best, psix=psix, psi0=psi0, bb_limit=False), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
 
         # For double peak profile
-        #p_opt_best_2ndPeak = [20, 17, 0.1, 0.75]
         psix  = rt1.psi(p_opt_best_2ndPeak[3], 0.0, separatrix=True) # psi上のBが最小となる直線上の密度最大値
-        ne += np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best_2ndPeak, psix=psix, psi0=psi0), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
+        ne += np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best_2ndPeak, psix=psix, psi0=psi0, bb_limit=False), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
+
+        #ne = np.where(psi > 0.006375, ne, 0.0)
+        #ne[psi < 0.006390] = 0.0
+        #ne[psi < 0.006600] = 0.0
+        #ne[psi < 0.0063767] = 0.0
+        #ne[ne > 1.15] = 0.0
 
         return ne
 
@@ -468,15 +476,15 @@ class ImageReconstruction:
         d_dist_from_cam = dist_from_cam[1] - dist_from_cam[0]
         vec_i = np.array([-np.cos(THETA), np.sin(THETA), np.sin(PHI)])
         norm_vec_i = np.linalg.norm(vec_i, axis=0, ord=2)
-        x_1ref = np.zeros(dist_from_cam.__len__())
-        y_1ref = np.zeros(dist_from_cam.__len__())
-        z_1ref = np.zeros(dist_from_cam.__len__())
 
         reflection_factor = 0.0
 
         x = self.R_cam + d_dist_from_cam*vec_i[0, :, :, :]*I_ARRAY/norm_vec_i
         y = d_dist_from_cam*vec_i[1, :, :, :]*I_ARRAY/norm_vec_i
         z = d_dist_from_cam*vec_i[2, :, :, :]*I_ARRAY/norm_vec_i
+        x_1ref = np.zeros(x.shape)
+        y_1ref = np.zeros(y.shape)
+        z_1ref = np.zeros(z.shape)
         #===============================================================================================================
         #   真空容器との接触を判定
         #===============================================================================================================
@@ -485,50 +493,68 @@ class ImageReconstruction:
         is_inside_vacuum_vessel_2 = np.where((np.abs(z)>0.35) & (np.abs(z)<0.53) & (np.sqrt(x**2 + y**2)>(0.8 + np.sqrt(0.04 - (np.abs(z) - 0.35)**2))))
         is_inside_vacuum_vessel_3 = np.where((np.abs(z)>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(np.abs(z)-0.53))))
         try:
+            buf_arr_for_refcnt = np.ones(x.shape)
+            x_reflection_point = np.ones(x.shape)
+            y_reflection_point = np.ones(y.shape)
+            z_reflection_point = np.ones(z.shape)
+            vec_i_x = vec_i[0]
+            vec_i_y = vec_i[1]
+            vec_i_z = vec_i[2]
             #if is_inside_vacuum_vessel_1[0][-1] > is_inside_vacuum_vessel_0[0][0]:
-            #    index_is_inside_vacuum_vessel = np.min(np.where(is_inside_vacuum_vessel_1 > is_inside_vacuum_vessel_0[0][0], is_inside_vacuum_vessel_1, np.inf)) - 1
-            #    reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
-            #    vec_n = np.array([-reflectionpoint[0], -reflectionpoint[1], 0])
+            #if np.sum(is_inside_vacuum_vessel_1)>0:
+            #    #    index_is_inside_vacuum_vessel = np.min(np.where(is_inside_vacuum_vessel_1 > is_inside_vacuum_vessel_0[0][0], is_inside_vacuum_vessel_1, np.inf)) - 1
+            #    #    reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
+            #    is_inside_vacuum_vessel = is_inside_vacuum_vessel_1
             #    sign_vec_ref = np.array([1, 1, 1])
             if np.sum(is_inside_vacuum_vessel_2)>0:
-            #elif np.sum(is_inside_vacuum_vessel_2)>0:
+                #elif np.sum(is_inside_vacuum_vessel_2)>0:
                 #reflectionpoint = np.array([x[is_inside_vacuum_vessel_2], y[is_inside_vacuum_vessel_2], z[is_inside_vacuum_vessel_2]])
-                vec_n = np.array([-0.8*x, -0.8*y, 0.35*np.sign(z)])
+                is_inside_vacuum_vessel = is_inside_vacuum_vessel_2
                 sign_vec_ref = np.array([1, 1, -1])
-            #elif np.sum(is_inside_vacuum_vessel_3)>0:
-            #    index_is_inside_vacuum_vessel = np.min(np.argwhere((np.abs(z)>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(np.abs(z)-0.53))))) - 1
-            #    reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
-            #    sign_vec_ref = np.array([1, -1, 1])
+            #if np.sum(is_inside_vacuum_vessel_3)>0:
+            #    #    index_is_inside_vacuum_vessel = np.min(np.argwhere((np.abs(z)>0.53) & (np.sqrt(x**2 + y**2)>(0.8888889 - 2.7838*(np.abs(z)-0.53))))) - 1
+            #    #    reflectionpoint = np.array([x[index_is_inside_vacuum_vessel], y[index_is_inside_vacuum_vessel], z[index_is_inside_vacuum_vessel]])
+            #    #    sign_vec_ref = np.array([1, -1, 1])
+            #    is_inside_vacuum_vessel = is_inside_vacuum_vessel_3
+            #    buf_arr_for_refcnt[is_inside_vacuum_vessel_3] = 0.0
             #    if(reflectionpoint[0]>0):
             #        vec_n = np.array([reflectionpoint[0], reflectionpoint[1], -np.sign(reflectionpoint[2])*(np.sqrt(reflectionpoint[0]**2 + reflectionpoint[1]**2)*2.7838)])
             #    else:
             #        vec_n = np.array([reflectionpoint[0], reflectionpoint[1], np.sign(reflectionpoint[2])*(np.sqrt(reflectionpoint[0]**2 + reflectionpoint[1]**2)*2.7838)])
-        except:
-            pass
-        try:
+            buf_arr_for_refcnt[is_inside_vacuum_vessel] = 0.0
+            arr_for_refcnt = np.sum(buf_arr_for_refcnt, axis=2)
+            arr_for_refcnt = arr_for_refcnt[:, :, np.newaxis]
+            J_ARRAY = I_ARRAY - arr_for_refcnt*np.ones(x.shape)
+            x_reflection_point[is_inside_vacuum_vessel] = x[is_inside_vacuum_vessel] - (d_dist_from_cam*vec_i_x[is_inside_vacuum_vessel]*(J_ARRAY[is_inside_vacuum_vessel]-1)/norm_vec_i[is_inside_vacuum_vessel])
+            y_reflection_point[is_inside_vacuum_vessel] = y[is_inside_vacuum_vessel] - (d_dist_from_cam*vec_i_y[is_inside_vacuum_vessel]*(J_ARRAY[is_inside_vacuum_vessel]-1)/norm_vec_i[is_inside_vacuum_vessel])
+            z_reflection_point[is_inside_vacuum_vessel] = z[is_inside_vacuum_vessel] - (d_dist_from_cam*vec_i_z[is_inside_vacuum_vessel]*(J_ARRAY[is_inside_vacuum_vessel]-1)/norm_vec_i[is_inside_vacuum_vessel])
+            #if np.sum(is_inside_vacuum_vessel_1)>0:
+            #    vec_n = np.array([-x_reflection_point, -y_reflection_point, 0])
+            #    sign_vec_ref = np.array([1, 1, 1])
+            if np.sum(is_inside_vacuum_vessel_2)>0:
+                vec_n = np.array([-0.8*x_reflection_point, -0.8*y_reflection_point, 0.35*np.sign(z_reflection_point)])
+                sign_vec_ref = np.array([1, 1, -1])
+            #if np.sum(is_inside_vacuum_vessel_3)>0:
+            #    vec_n = np.array([x_reflection_point, y_reflection_point, -np.sign(z_reflection_point)*(np.sqrt(z_reflection_point**2 + y_reflection_point**2)*2.7838)])
+
             vec_ref = self.cal_reflection_vector_broadcast(vec_i, vec_n)
-            norm_vec_ref = np.linalg.norm(vec_ref, axis=0)
-            #j_array = np.arange(dist_from_cam.__len__()-index_is_inside_vacuum_vessel)
-            #x[index_is_inside_vacuum_vessel+1:] = np.nan
-            #y[index_is_inside_vacuum_vessel+1:] = np.nan
-            #z[index_is_inside_vacuum_vessel+1:] = np.nan
-            #x_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            #y_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            #z_1ref[:index_is_inside_vacuum_vessel] = np.nan
-            #x_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[0] + d_dist_from_cam*sign_vec_ref[0]*vec_ref[0]*j_array/norm_vec_ref
-            #y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] + d_dist_from_cam*sign_vec_ref[1]*vec_ref[1]*j_array/norm_vec_ref
-            #z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] + d_dist_from_cam*sign_vec_ref[2]*vec_ref[2]*j_array/norm_vec_ref
             vec_ref_x = vec_ref[0]
             vec_ref_y = vec_ref[1]
             vec_ref_z = vec_ref[2]
-            x[is_inside_vacuum_vessel_2] = self.R_cam + d_dist_from_cam*vec_ref_x[is_inside_vacuum_vessel_2]*I_ARRAY[is_inside_vacuum_vessel_2]/norm_vec_ref[is_inside_vacuum_vessel_2]
-            y[is_inside_vacuum_vessel_2] = d_dist_from_cam*vec_ref_y[is_inside_vacuum_vessel_2]*I_ARRAY[is_inside_vacuum_vessel_2]/norm_vec_ref[is_inside_vacuum_vessel_2]
-            z[is_inside_vacuum_vessel_2] = d_dist_from_cam*vec_ref_z[is_inside_vacuum_vessel_2]*I_ARRAY[is_inside_vacuum_vessel_2]/norm_vec_ref[is_inside_vacuum_vessel_2]
+            norm_vec_ref = np.linalg.norm(vec_ref, axis=0)
+            x[is_inside_vacuum_vessel] = x_reflection_point[is_inside_vacuum_vessel] + d_dist_from_cam*vec_ref_x[is_inside_vacuum_vessel]*J_ARRAY[is_inside_vacuum_vessel]/norm_vec_ref[is_inside_vacuum_vessel]
+            y[is_inside_vacuum_vessel] = y_reflection_point[is_inside_vacuum_vessel] + d_dist_from_cam*vec_ref_y[is_inside_vacuum_vessel]*J_ARRAY[is_inside_vacuum_vessel]/norm_vec_ref[is_inside_vacuum_vessel]
+            z[is_inside_vacuum_vessel] = z_reflection_point[is_inside_vacuum_vessel] + d_dist_from_cam*vec_ref_z[is_inside_vacuum_vessel]*J_ARRAY[is_inside_vacuum_vessel]/norm_vec_ref[is_inside_vacuum_vessel]
+            #x[is_inside_vacuum_vessel_2] = np.nan
+            #y[is_inside_vacuum_vessel_2] = np.nan
+            #z[is_inside_vacuum_vessel_2] = np.nan
+            x_1ref = np.where(x_1ref==0, np.nan, x_1ref)
             #injection_angle = self.cal_injection_angle_for2vector(vec_i, vec_n)
             #R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.6580, 2.8125)
             #reflection_factor = (R_s + R_p)/2
         except:
-            pass
+            import traceback
+            traceback.print_exc()
 
         return x, y, z, x_1ref, y_1ref, z_1ref, reflection_factor
 
@@ -850,7 +876,7 @@ class ImageReconstruction:
         plt.title("Projection")
 
         plt.tight_layout()
-        #plt.show()
+        plt.show()
         plt.savefig("SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
                     (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3],\
                      p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
@@ -860,7 +886,7 @@ class ImageReconstruction:
                   image_local=image_local, image=image, image_1ref=image_1ref, p_opt_best=p_opt_best, p_opt_best_2ndPeak=p_opt_best_2ndPeak, dist_from_cam=dist_from_cam)
 
     def load_image(self, p_opt_best, p_opt_best_2ndPeak):
-        images = np.load("SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
+        images = np.load("dataset_SimCIS/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
                  (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
                   p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
         image_local = images['image_local']
@@ -905,8 +931,11 @@ class ImageReconstruction:
         ax = Axes3D(fig)
         if showRay:
             for i in range(self.r_num):
-                ax.plot(x[i,i,:], y[i,i,:], z[i,i,:], "-", color="#00aa00", ms=1, mew=0.1)
-            #ax.plot(x_1ref, y_1ref, z_1ref, "-", color="#aa0000", ms=1, mew=0.1)
+                for j in range(1):
+                    j=0
+                #for j in range(self.z_num):
+                    ax.plot(x[i,j,:], y[i,j,:], z[i,0,:], "-", color="#00aa00", ms=1, mew=0.1)
+                    ax.plot(x_1ref[i,j,:], y_1ref[i,j,:], z_1ref[i,j,:], "-", color="#aa0000", ms=10, mew=0.1)
         ax.set_aspect('equal')
         # 軸ラベル
         ax.set_xlabel('x')
@@ -1141,6 +1170,51 @@ def make_line_integrated_images(num_loop, frame=None, num_Process=None):
                                 num+=1
                                 print('Progress (%d/%d): %d/%d (%.2f percent)' % (frame+1, num_Process, num, num_loop**7/num_Process, 100*num*num_Process/num_loop**7))
 
+def make_dataset_for_pix2pix(num_loop):
+    ratio_1st_per_2nd = [0.1, 0.5, 1.0, 2.0, 10]
+    for i3 in range(num_loop+1):
+        for j3 in range(num_loop+1):
+            for j0 in range(num_loop+2):
+                for i1 in range(num_loop):
+                    for i2 in range(num_loop):
+                        for j1 in range(num_loop):
+                            for j2 in range(num_loop):
+                                try:
+                                    p_opt_best = [1, 1 + 20 * i1 / num_loop, 0.1 + 2.0 * i2 / num_loop,
+                                                  0.38 + 0.32 * i3 / num_loop]
+                                    # p_opt_best_2ndPeak = [10**(-1 + 2*j0/num_loop), 1 + 20*j1/num_loop, 0.1 + 2.0*j2/num_loop, 0.70 + 0.25*j3/num_loop]
+                                    p_opt_best_2ndPeak = [ratio_1st_per_2nd[j0], 1 + 20 * j1 / num_loop,
+                                                          0.1 + 2.0 * j2 / num_loop, 0.70 + 0.25 * j3 / num_loop]
+                                    #p_opt_best = [1, 1 + 20*i1/num_loop, 0.1 + 2.0*i2/num_loop, 0.38 + 0.32*i3/num_loop]
+                                    #p_opt_best_2ndPeak = [10**(-1 + 2*j0/num_loop), 1 + 20*j1/num_loop, 0.1 + 2.0*j2/num_loop, 0.70 + 0.25*j3/num_loop]
+                                    images = np.load("dataset_SimCIS_ltd_bb/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
+                                                     (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                                                      p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
+                                    image_local = images['image_local']
+                                    image = images['image']
+                                    image_1ref = images['image_1ref']
+
+                                    plt.axis("off")
+                                    plt.tick_params(bottom=False, left=False, right=False, top=False,labelbottom=False,labelleft=False,labelright=False,labeltop=False)
+                                    plt.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+                                    plt.imshow(image_local[::-1,:], cmap='jet')
+                                    plt.savefig("dataset_SimCIS_ltd_bb/Local/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                                                (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                                                 p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]),\
+                                                bbox_inches="tight", pad_inches=-0.04)
+                                    plt.imshow((image + image_1ref).T, cmap='jet')
+                                    plt.savefig("dataset_SimCIS_ltd_bb/Projection/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                                                (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                                                 p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]), \
+                                                bbox_inches="tight", pad_inches=-0.04)
+                                except:
+                                    #import traceback
+                                    #traceback.print_exc()
+                                    #print("No file: dataset_SimCIS/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                                    #      (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                                    #       p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
+                                    pass
+
 def png2video(num_loop):
     import cv2
     fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
@@ -1156,7 +1230,7 @@ def png2video(num_loop):
                                 try:
                                     p_opt_best = [1, 1 + 20*i1/num_loop, 0.1 + 2.0*i2/num_loop, 0.38 + 0.32*i3/num_loop]
                                     p_opt_best_2ndPeak = [10**(-1 + 2*j0/num_loop), 1 + 20*j1/num_loop, 0.1 + 2.0*j2/num_loop, 0.70 + 0.25*j3/num_loop]
-                                    img = cv2.imread("dataset_SimCIS/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                                    img = cv2.imread("dataset_SimCIS/SimCIS_1st%dmport _%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
                                                 (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
                                                  p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
                                     img = cv2.resize(img, (640, 480))
@@ -1176,7 +1250,8 @@ if __name__ == '__main__':
     start = time.time()
 
     #make_line_integrated_images(num_loop=2, frame=1, num_Process=2)
-    png2video(2)
+    #png2video(3)
+    make_dataset_for_pix2pix(3)
 
     #imrec = ImageReconstruction()
     #imrec.projection_poroidally(1.2, np.pi/4, np.pi/4)
@@ -1184,7 +1259,8 @@ if __name__ == '__main__':
     #imrec.plot_projection()
     #imrec.plot_projection_image()
     #imrec.bokeh_local_image()
-    #imrec.plot_local_image()
+    #imrec.plot_local_image(p_opt_best=[30, 18, 1.0, 0.5], p_opt_best_2ndPeak=[20, 17, 0.1, 0.75])
+    #imrec.plot_local_image(p_opt_best=[1, 7, 0.77, 0.59], p_opt_best_2ndPeak=[0.5, 7, 1.43, 0.87])
     #imrec.spline_image()
     #imrec.plot_projection_image_spline()
     #imrec.plot_projection_image_spline_wrt_1reflection(reflection_factor=0.5)
@@ -1197,6 +1273,7 @@ if __name__ == '__main__':
     #imrec.show_animation()
     #imrec.plot_3Dto2D_broadcast()
     #imrec.plot_3Dto2D(p_opt_best=[30, 18, 1.0, 0.5], p_opt_best_2ndPeak=[20, 17, 0.1, 0.75])
+    #imrec.plot_3Dto2D(p_opt_best=[1, 7, 0.77, 0.59], p_opt_best_2ndPeak=[0.5, 7, 1.43, 0.87])
     #imrec.load_image(p_opt_best=[30, 18, 1.0, 0.5], p_opt_best_2ndPeak=[20, 17, 0.1, 0.75])
     #imrec.load_relative_illumination()
 

@@ -85,21 +85,25 @@ mpl.rcParams.update(params)
 #----------------------------------------------------#
 #                   def ne(r, z)                     #
 #----------------------------------------------------#
-def ne_single_gaussian(r, z, *p, psix=None, psi0=None):
+def ne_single_gaussian(r, z, *p, psix=None, psi0=None, separatrix=True, bb_limit=False):
 #def ne_single_gaussian(r, z, *p):  #上に変更（釼持20181214）要注意
 	n1, a1, b1, rm = p
 
 	br, bz = rt1.bvec(r, z, separatrix)
 	bb = np.sqrt(br**2 + bz**2)
 
+	if bb_limit==True and z > 0.35 and r < 0.75 and bb < 0.008:
+		bb = np.inf
+
 	if r == 0.0:
 		return n1 * np.exp(-a1 * abs((rt1.psi(r, 0.0, separatrix)-psix)/psi0)**2)
 
 	if rt1.check_coilcase(r, z):
 		return 0.0
+
 	else:
 		return n1 * np.exp(-a1*abs((rt1.psi(r, z, separatrix) - psix)/psi0)**2) * (bb/rt1.b0(r, z, separatrix))**(-b1)
-
+		#return (bb)
 
 #----------------------------------------------------#
 #              def psi_term, B_term                  #
