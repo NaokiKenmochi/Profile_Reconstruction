@@ -214,7 +214,7 @@ def view_profile(p_opt):
     zs = np.linspace(-0.4, 0.401, 200)
     r_mesh, z_mesh = np.meshgrid(rs, zs)
 
-    ne_profile = np.array([list(map(lambda r, z : ne_single_gaussian(r, z, *p_opt_best), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
+    #ne_profile = np.array([list(map(lambda r, z : ne_single_gaussian(r, z, *p_opt_best), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
     psi_term_profile = np.array([list(map(lambda r, z : psi_term(r, z, *p_opt_best), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
     B_term_profile = np.array([list(map(lambda r, z : B_term(r, z, *p_opt_best), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
     psi = np.array([list(map(lambda r, z : rt1.psi(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
@@ -222,16 +222,16 @@ def view_profile(p_opt):
     psi[coilcase_truth_table == True] = 0
     #np.save('ne2D_20180223_52_r2', ne_profile)
 
-    ne2D = np.load("ne2D_rs_nez0_20180223_52_r2_v2.npz")
-    ne_profile = ne2D["ne_profile"]
+    #ne2D = np.load("ne2D_rs_nez0_20180223_52_r2_v2.npz")
+    #ne_profile = ne2D["ne_profile"]
     #ne_profile = np.load("ne2D_20180223_52_r2.npy")
     #ne_profile_t10 = np.load("ne2D_35_t10_r1.npy")
-    #ne_profile_t11 = np.load("ne2D_35_t11_r1.npy")
-    ne_profile_t20 = np.load("ne2D_35_t20_r1.npy")
+    ne_profile_t11 = np.load("ne2D_35_t11_r1.npy")
+    #ne_profile_t20 = np.load("ne2D_35_t20_r1.npy")
     ne_profile_t15 = np.load("ne2D_35_t15_r1.npy")
     #ne_profile_t16 = np.load("ne2D_20180223_64_t164_r2.npy")
     #ne_profile_t10 = np.load("ne2D_20180223_64_t10_r2.npy")
-    ne_profile = ne_profile_t20 - ne_profile_t15
+    ne_profile = ne_profile_t15 - ne_profile_t11
 
 
     # density profileの表示
@@ -265,9 +265,14 @@ def view_profile(p_opt):
     #plt.contour(r_mesh, z_mesh, f_O / 1e9, colors='lime', linewidths=2, levels=levels_cutoff)
 
     #< 電子サイクロトロン共鳴面に関するコード >
-    levels_resonance = [875e-4]
+    #levels_resonance = [875e-4]
     levels_resonance_2nd = [875e-4 / 2]
-#    plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, levels=levels_resonance)
+    levels_resonance_ICH_He2 = [2631e-4]    #He2+, 2MHzの共鳴面
+    levels_resonance_ICH_He1 = [5263e-4]    #He+, 2MHzの共鳴面
+    plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, levels=levels_resonance_ICH_He2)
+    plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, linestyles='dashed',
+                levels=levels_resonance_ICH_He1)
+    #plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, levels=levels_resonance)
     ##plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, linestyles='dashed',
     #            levels=levels_resonance_2nd)
 

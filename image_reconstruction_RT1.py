@@ -5,6 +5,9 @@ import rt1mag as rt1
 import time
 import pandas
 import codecs
+import cv2
+import os
+import matplotlib.colors
 import csv
 #import numba
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -14,6 +17,7 @@ from bokeh.plotting import figure, output_file, show, reset_output
 from multiprocessing import Pool
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
+from PIL import Image
 
 def unwrap_self_plot_projection_image_spline_wrt_1reflection_MP(arg, **kwarg):
     return ImageReconstruction.plot_projection_image_spline_wrt_1reflection_MP(*arg, **kwarg)
@@ -123,12 +127,16 @@ class ImageReconstruction:
         psix  = rt1.psi(p_opt_best[3], 0.0, separatrix=True) # psi上のBが最小となる直線上の密度最大値
         psi0  = rt1.psi(1.0, 0.0, separatrix=True) # psi at the vacuum chamber
         #psi0 = 0.002
-        ne = np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best, psix=psix, psi0=psi0, bb_limit=False), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
+        ne = np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best, psix=psix, psi0=psi0, bb_limit=True), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
 
         # For double peak profile
         psix  = rt1.psi(p_opt_best_2ndPeak[3], 0.0, separatrix=True) # psi上のBが最小となる直線上の密度最大値
-        ne += np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best_2ndPeak, psix=psix, psi0=psi0, bb_limit=False), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
+        ne += np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best_2ndPeak, psix=psix, psi0=psi0, bb_limit=True), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
 
+        # For third peak profile
+        p_opt_best_3rdPeak=[0.7, 7, 1.00, 0.55]
+        psix  = rt1.psi(p_opt_best_3rdPeak[3], 0.0, separatrix=True) # psi上のBが最小となる直線上の密度最大値
+        ne += np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best_3rdPeak, psix=psix, psi0=psi0, bb_limit=True), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
         #ne = np.where(psi > 0.006375, ne, 0.0)
         #ne[psi < 0.006390] = 0.0
         #ne[psi < 0.006600] = 0.0
@@ -833,7 +841,8 @@ class ImageReconstruction:
         phi = self.phi_max - 2*self.phi_max*np.arange(self.z_num)/self.z_num
         r_image = np.linspace(0, 1, self.r_num)
         z_image = np.linspace(-0.5, 0.5, self.z_num)
-        image_local = self.make_ne_image(r_image, z_image, p_opt_best, p_opt_best_2ndPeak)
+        #image_local = self.make_ne_image(r_image, z_image, p_opt_best, p_opt_best_2ndPeak)
+        image_local = image2ResizedGray(self.r_num, self.z_num)
         plt.figure(figsize=(16,12))
         plt.subplot(1,2,1)
         plt.imshow(image_local[::-1,:], cmap='jet', vmax=np.max(image_local[:np.int(0.8*self.r_num), :]), interpolation='none')
@@ -1170,11 +1179,21 @@ def make_line_integrated_images(num_loop, frame=None, num_Process=None):
                                 num+=1
                                 print('Progress (%d/%d): %d/%d (%.2f percent)' % (frame+1, num_Process, num, num_loop**7/num_Process, 100*num*num_Process/num_loop**7))
 
-def make_dataset_for_pix2pix(num_loop):
+def make_dataset_for_pix2pix(num_loop, frame=None, num_Process=None):
     ratio_1st_per_2nd = [0.1, 0.5, 1.0, 2.0, 10]
-    for i3 in range(num_loop+1):
-        for j3 in range(num_loop+1):
-            for j0 in range(num_loop+2):
+    if num_Process > 1:
+        st_loop = np.int(num_loop*frame/num_Process)
+        ed_loop = np.int(num_loop*(frame+1)/num_Process)
+    else:
+        st_loop = 0
+        ed_loop = num_loop
+        frame = 0
+        num_Process = 1
+
+    for j0 in range(num_loop+2):
+    #for j0 in range(st_loop, ed_loop):
+        for i3 in range(num_loop+1):
+            for j3 in range(num_loop+1):
                 for i1 in range(num_loop):
                     for i2 in range(num_loop):
                         for j1 in range(num_loop):
@@ -1197,12 +1216,12 @@ def make_dataset_for_pix2pix(num_loop):
                                     plt.axis("off")
                                     plt.tick_params(bottom=False, left=False, right=False, top=False,labelbottom=False,labelleft=False,labelright=False,labeltop=False)
                                     plt.subplots_adjust(left=0., right=1., bottom=0., top=1.)
-                                    plt.imshow(image_local[::-1,:], cmap='jet')
+                                    plt.imshow(image_local[::-1,:], cmap='jet', interpolation=None)
                                     plt.savefig("dataset_SimCIS_ltd_bb/Local/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
                                                 (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
                                                  p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]),\
                                                 bbox_inches="tight", pad_inches=-0.04)
-                                    plt.imshow((image + image_1ref).T, cmap='jet')
+                                    plt.imshow((image + image_1ref).T, cmap='jet', interpolation=None)
                                     plt.savefig("dataset_SimCIS_ltd_bb/Projection/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
                                                 (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
                                                  p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]), \
@@ -1245,13 +1264,368 @@ def png2video(num_loop):
 
     video.release()
 
+def mask_with_circle():
+    arr_mask = np.zeros((100, 100))
+    for i in range(100):
+        for j in range(100):
+            if np.int((i-45)**2 + (j-50)**2) < 45**2:
+                arr_mask[i, j] = 1
+            if i<10 or i>80:
+                arr_mask[i, j] = 0
+
+
+    plt.imshow(arr_mask, cmap='jet')
+    plt.savefig("mask_CIS.png")
+    #plt.show()
+
+def read_mask():
+    img = cv2.imread("test_masked_CIS.png", cv2.IMREAD_COLOR)
+    i_max, j_max, _ = np.shape(img)
+    img_mask = np.zeros((i_max, j_max))
+    for i in range(i_max):
+        for j in range(j_max):
+            if i>np.int(0.1*i_max) and i<np.int(0.8*i_max) and np.int((i - 0.45*i_max)**2 + (j - 0.5*j_max)**2) < (0.45*i_max)**2:
+                img_mask[i, j] = 1
+
+    img[img_mask==0] = [127, 0, 0]
+
+    #img = cv2.imread("test_local.png", cv2.IMREAD_COLOR)
+    #img_mask[:,:,0] = 127
+    cv2.imwrite("maskedImg.png", img)
+    #plt.imshow(img, cmap='jet')
+    #plt.show()
+
+def make_1maskedImg(p_opt_best, p_opt_best_2ndPeak):
+    img = cv2.imread("test_masked_CIS.png", cv2.IMREAD_COLOR)
+    i_max, j_max, _ = np.shape(img)
+    img_mask = np.zeros((i_max, j_max))
+    for i in range(i_max):
+        for j in range(j_max):
+            if i>np.int(0.1*i_max) and i<np.int(0.8*i_max) and np.int((i - 0.45*i_max)**2 + (j - 0.5*j_max)**2) < (0.45*i_max)**2:
+                img_mask[i, j] = 1
+            if i>np.int(0.41*i_max) and i<np.int(0.60*i_max) and j < np.int(0.31*j_max):
+                img_mask[i, j] = 0
+            if j > np.int(0.310*j_max) and np.int((i - 0.5*i_max)**2 + (j - 0.3*j_max)**2) < (0.09*i_max)**2:
+                img_mask[i, j] = 0
+
+    img[img_mask==0] = [127, 0, 0]
+    plt.imshow(img)
+    plt.show()
+
+    images = np.load("SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
+                     (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                      p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
+    image_local = images['image_local']
+    image = images['image']
+    image_1ref = images['image_1ref']
+
+    plt.axis("off")
+    plt.tick_params(bottom=False, left=False, right=False, top=False,labelbottom=False,labelleft=False,labelright=False,labeltop=False)
+    plt.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+    plt.imshow(image_local[::-1,:], cmap='jet', interpolation=None)
+    plt.savefig("dataset_SimCIS_ltd_bb/Local/SimCIS_3peaks_maskedFC_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                 p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]), \
+                bbox_inches="tight", pad_inches=-0.04)
+    plt.imshow((image + image_1ref).T, cmap='jet', interpolation=None)
+    plt.savefig("dataset_SimCIS_ltd_bb/Projection/SimCIS_3peaks_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                 p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]), \
+                bbox_inches="tight", pad_inches=-0.04)
+
+    cv2.imwrite("maskedImg.png", img)
+    img = cv2.imread("dataset_SimCIS_ltd_bb/Projection/SimCIS_3peaks_maskedFC_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                     (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                      p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
+    img[img_mask==0] = [127, 0, 0]
+    cv2.imwrite("dataset_SimCIS_ltd_bb_masked/SimCIS_3peaks_maskedFC_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                 p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]), img)
+
+def make_maskedImg(num_loop, frame=None, num_Process=None):
+    ratio_1st_per_2nd = [0.1, 0.5, 1.0, 2.0, 10]
+    img = cv2.imread("test_masked_CIS.png", cv2.IMREAD_COLOR)
+    i_max, j_max, _ = np.shape(img)
+    img_mask = np.zeros((i_max, j_max))
+    for i in range(i_max):
+        for j in range(j_max):
+            if i>np.int(0.1*i_max) and i<np.int(0.8*i_max) and np.int((i - 0.45*i_max)**2 + (j - 0.5*j_max)**2) < (0.45*i_max)**2:
+                img_mask[i, j] = 1
+
+    img[img_mask==0] = [127, 0, 0]
+
+    cv2.imwrite("maskedImg.png", img)
+    #if num_Process > 1:
+    #    st_loop = np.int(num_loop*frame/num_Process)
+    #    ed_loop = np.int(num_loop*(frame+1)/num_Process)
+    #else:
+    #    st_loop = 0
+    #    ed_loop = num_loop
+    #    frame = 0
+    #    num_Process = 1
+
+    for j0 in range(num_loop+2):
+    #for j0 in range(st_loop, ed_loop):
+        for i3 in range(num_loop+1):
+            for j3 in range(num_loop+1):
+                for i1 in range(num_loop):
+                    for i2 in range(num_loop):
+                        for j1 in range(num_loop):
+                            for j2 in range(num_loop):
+                                try:
+                                    p_opt_best = [1, 1 + 20 * i1 / num_loop, 0.1 + 2.0 * i2 / num_loop,
+                                                  0.38 + 0.32 * i3 / num_loop]
+                                    # p_opt_best_2ndPeak = [10**(-1 + 2*j0/num_loop), 1 + 20*j1/num_loop, 0.1 + 2.0*j2/num_loop, 0.70 + 0.25*j3/num_loop]
+                                    p_opt_best_2ndPeak = [ratio_1st_per_2nd[j0], 1 + 20 * j1 / num_loop,
+                                                          0.1 + 2.0 * j2 / num_loop, 0.70 + 0.25 * j3 / num_loop]
+                                    #p_opt_best = [1, 1 + 20*i1/num_loop, 0.1 + 2.0*i2/num_loop, 0.38 + 0.32*i3/num_loop]
+                                    #p_opt_best_2ndPeak = [10**(-1 + 2*j0/num_loop), 1 + 20*j1/num_loop, 0.1 + 2.0*j2/num_loop, 0.70 + 0.25*j3/num_loop]
+                                    img = cv2.imread("dataset_SimCIS_ltd_bb/Projection/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                                                     (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                                                      p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
+                                    img[img_mask==0] = [127, 0, 0]
+                                    cv2.imwrite("dataset_SimCIS_ltd_bb_masked/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                                                (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                                                 p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]), img)
+
+                                except:
+                                    #import traceback
+                                    #traceback.print_exc()
+                                    pass
+
+
+def mse(imageA, imageB):
+    # the 'Mean Squared Error' between the two images is the
+    # sum of the squared difference between the two images;
+    # NOTE: the two images must have the same dimension
+    err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
+    err /= float(imageA.shape[0] * imageA.shape[1])
+
+    # return the MSE, the lower the error, the more "similar"
+    # the two images are
+    return err
+
+def rmse(imageA, imageB):
+    """ Root Mean Squared Error """
+    return np.sqrt(mse(imageA, imageB))
+
+
+def nrmse(imageA, imageB):
+    """ Normalized Root Mean Squared Error """
+    return rmse(imageA, imageB) / (imageA.max() - imageA.min())
+
+def compare_images(path_imageA, path_imageB):
+    from skimage.measure import compare_ssim, compare_psnr
+    # compute the mean squared error and structural similarity
+    # index for the images
+    imageA = cv2.imread(path_imageA, cv2.IMREAD_GRAYSCALE)
+    imageB = cv2.imread(path_imageB, cv2.IMREAD_GRAYSCALE)
+    m = mse(imageA, imageB)
+    nrm = nrmse(imageA, imageB)
+    s = compare_ssim(imageA, imageB)
+    p = compare_psnr(imageA, imageB)
+
+    #print(path_imageA, m, nrm, s, p)
+
+    ## setup the figure
+    #fig = plt.figure()
+    #plt.suptitle("MSE: %.2f, \nSSIM: %.2f, \nPSNR: %.2f" % (m, s, p))
+
+    ## show first image
+    #ax = fig.add_subplot(1, 2, 1)
+    ##plt.imshow(imageA, cmap=plt.cm.gray)
+    #plt.imshow(imageA, cmap=plt.cm.jet)
+    #plt.axis("off")
+
+    ## show the second image
+    #ax = fig.add_subplot(1, 2, 2)
+    #plt.imshow(imageB, cmap=plt.cm.jet)
+    #plt.axis("off")
+
+    ## show the images
+    #plt.show()
+
+    return m, nrm, s, p
+
+def compare_allimages_indir(path):
+    m = []
+    nrm = []
+    s = []
+    p = []
+    s_max = 0.
+    s_min = 1.
+    for pathname, dirnames, filenames in os.walk(path):
+        for filename in filenames:
+            if filename.endswith('-outputs.png'):
+                path_A = os.path.join(pathname, filename)
+                path_B = path_A[:-11] + "targets.png"
+                buf_m, buf_nrm, buf_s, buf_p = compare_images(path_A, path_B)
+                m.append(buf_m.tolist())
+                nrm.append(buf_nrm.tolist())
+                s.append(buf_s.tolist())
+                p.append(buf_p.tolist())
+                if s_max < buf_s:
+                    s_max = buf_s
+                    path_A_smax = path_A
+                if s_min > buf_s:
+                    s_min = buf_s
+                    path_A_smin = path_A
+
+    m_mean = np.mean(m)
+    m_stdev = np.std(m)
+    nrm_mean = np.mean(nrm)
+    nrm_stdev = np.std(nrm)
+    nrm_max = np.max(nrm)
+    s_mean = np.mean(s)
+    s_stdev = np.std(s)
+    s_max = np.max(s)
+    p_mean = np.mean(p)
+    p_stdev = np.std(p)
+    p_max = np.max(p)
+
+    print(m_mean, m_stdev)
+    print(nrm_mean, nrm_stdev)
+    print(s_mean, s_stdev)
+    print(p_mean, p_stdev)
+
+def load_intensityCIS():
+    data = np.load("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/CoherenceImaging/intensity_CIS/CIS発光量/I0_2D_r_20180921d0055.txt.npy")
+    #data = np.load("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/CoherenceImaging/intensity_CIS/発光量(ICH実験)/I0_2D_r_20180921d0069.txt.npy")
+    #data = np.load("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/CoherenceImaging/intensity_CIS/発光量(ICH実験)/I0_2D_r_20171111d0037.txt.npy")
+    data = data[::-1, :]
+    orgHeight, orgWidth = data.shape[:2]
+    offset = 100
+    offset_up = 40
+    offset_left = 30
+    length_square = np.max((orgHeight+offset, orgWidth+offset))
+    squareImg = np.zeros((length_square, length_square))
+    start_up = np.int((length_square-offset-orgHeight)/2) + offset_up
+    start_left = np.int((length_square-offset-orgWidth)/2) + offset_left
+    squareImg[start_up:start_up+orgHeight, start_left:start_left + orgWidth] = data
+    #plt.imshow(squareImg, cmap='jet')
+    #plt.show()
+    #size = (np.int(orgHeight/10), np.int(orgWidth/10))
+    size = (100, 100)
+    OpenCV_data = np.asarray(squareImg)
+    resizedImg = cv2.resize(OpenCV_data, size, interpolation=cv2.INTER_CUBIC)
+    resizedImg[:,:10] = 0.0
+    resizedImg[:,-10:] = 0.0
+    blur = cv2.blur(resizedImg, (5,3))
+    gblur = cv2.GaussianBlur(resizedImg, (5, 5), 2)
+    #mblur = cv2.medianBlur(resizedImg, ksize=5)
+    #resizedImg = data.resize(size)
+    blur0pad = np.pad(blur, [(40,60), (20,30)], "constant")
+    plt.figure(figsize=(10, 10))
+    plt.subplot(221)
+    plt.title('Original')
+    plt.imshow(squareImg, cmap='jet')
+    plt.xticks([]), plt.yticks([])
+    plt.subplot(222)
+    plt.title('Resized')
+    plt.imshow(resizedImg, cmap='jet')
+    plt.xticks([]), plt.yticks([])
+    plt.subplot(223)
+    plt.imshow(blur, cmap='jet')
+    plt.title('Blurred')
+    plt.xticks([]), plt.yticks([])
+    plt.subplot(224)
+    plt.imshow(gblur, cmap='jet')
+    plt.title('GaussianBlurred')
+    plt.xticks([]), plt.yticks([])
+    plt.show()
+
+    plt.axis("off")
+    plt.tick_params(bottom=False, left=False, right=False, top=False,labelbottom=False,labelleft=False,labelright=False,labeltop=False)
+    plt.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+    plt.imshow(blur, cmap='jet', interpolation=None, vmax=610)
+    #plt.savefig("intensity_CIS_woICH_sn69.png", bbox_inches="tight", pad_inches=-0.04)
+
+def changecolormap(image, origin_cmap, target_cmap):
+    r = np.linspace(0,1, 256)
+    norm = matplotlib.colors.Normalize(0,1)
+    mapvals = origin_cmap(norm(r))[:,:3]
+
+    def get_value_from_cm(color):
+        color=matplotlib.colors.to_rgb(color)
+        #if color is already gray scale, dont change it
+        if np.std(color) < 0.1:
+            return color
+        #otherwise return value from colormap
+        distance = np.sum((mapvals - color)**2, axis=1)
+        return target_cmap(r[np.argmin(distance)])[:3]
+
+    newim = np.zeros_like(image)
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+            c = image[i,j,:3]
+            newim[i,j, :3] =  get_value_from_cm(c)
+    return newim
+
+def image2ResizedGray(r_num, z_num):
+    #buf_image_local = plt.imread('export_CIS_5_step518k.png')
+    buf_image_local = plt.imread('export_intensity_CIS_woICH_sn69.png')
+    #buf_image_local = plt.imread('export_test_CIS_square.png')
+    #buf_image_local = cv2.resize(buf_image_local, (r_num, z_num))
+    #image_local = changecolormap(buf_image_local, plt.cm.jet, plt.cm.viridis)
+    image_local = changecolormap(buf_image_local, plt.cm.jet, plt.cm.gray)
+    image_local = cv2.cvtColor(image_local, cv2.COLOR_BGR2GRAY)
+    image_local = cv2.resize(image_local, (r_num, z_num))
+    image_local = image_local[::-1,:]
+    image_local[:15,:] = 0.0
+    image_local[-22:,:] = 0.0
+    image_local[:, -19:] = 0.0
+    #image_local[:, 3:] = image_local[:, :-3]
+    #image_local[3:, :] = image_local[:-3, :]
+    image_local[2:, :] = image_local[:-2, :]
+
+    plt.figure(figsize=(8, 8))
+    plt.subplot(111)
+
+    separatrix = True  # if pure dipole configuration, change this to 'False'
+    levels = [0.005, 0.006, 0.007, 0.008, 0.009, 0.01, 0.011, 0.012, 0.013, 0.014]
+    rs = np.linspace( 0.0, 1.001, 200)
+    zs = np.linspace(-0.5, 0.501, 200)
+    r_mesh, z_mesh = np.meshgrid(rs, zs)
+    plt.imshow(image_local[::,:], origin='lower', cmap='jet', \
+                     extent=(rs.min(), rs.max(), zs.min(), zs.max()))
+    mag_strength = np.array(
+        [list(map(lambda r, z: np.sqrt(rt1.bvec(r, z, separatrix)[0] ** 2 + rt1.bvec(r, z, separatrix)[1] ** 2),
+                  r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
+    levels_resonance_ICH_He2 = [2631e-4]    #He2+, 2MHzの共鳴面
+    levels_resonance_ICH_He1 = [5263e-4]    #He+, 2MHzの共鳴面
+    plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, levels=levels_resonance_ICH_He2)
+    plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, linestyles='dashed',
+                levels=levels_resonance_ICH_He1)
+    psi = np.array([list(map(lambda r, z : rt1.psi(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
+    coilcase_truth_table = np.array([list(map(lambda r, z : rt1.check_coilcase(r, z), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
+    psi[coilcase_truth_table == True] = 0
+    plt.contour(r_mesh, z_mesh, psi, colors=['white'], linewidths=0.5, levels=levels)
+    #plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, levels=levels_resonance)
+    ##plt.contour(r_mesh, z_mesh, mag_strength, colors='red', linewidths=3, linestyles='dashed',
+    #            levels=levels_resonance_2nd)
+
+    #plt.title(r'$n_\mathrm{e}$')
+    plt.xlabel(r'$r\mathrm{\ [m]}$')
+    plt.ylabel(r'$z\mathrm{\ [m]}$')
+    plt.tight_layout()
+    plt.show()
+
+    return image_local
 
 if __name__ == '__main__':
     start = time.time()
 
     #make_line_integrated_images(num_loop=2, frame=1, num_Process=2)
     #png2video(3)
-    make_dataset_for_pix2pix(3)
+    #make_dataset_for_pix2pix(3)
+    #mask_with_circle()
+    #make_maskedImg(num_loop=3)
+    #make_1maskedImg(p_opt_best=[1, 7, 0.77, 0.4], p_opt_best_2ndPeak=[0.5, 7, 1.43, 0.90])
+    #path_A = "/users/kemmochi/skydrive/document/study/fusion/rt1/coherenceimaging/tomography/pix2pix/epochs100/images/simcis_1st1_1_0.1_0.38_2nd0.50_7_0.8_0.78-outputs.png"
+    #path_B = "/users/kemmochi/skydrive/document/study/fusion/rt1/coherenceimaging/tomography/pix2pix/epochs100/images/simcis_1st1_1_0.1_0.38_2nd0.50_7_0.8_0.78-targets.png"
+    #compare_images(path_A, path_B)
+    compare_allimages_indir("/Volumes/kemmochi/Documents/RT1/pix2pix-tensorflow/modified_docker/Projection2Local/masked/epochs100/images")
+    #load_intensityCIS()
 
     #imrec = ImageReconstruction()
     #imrec.projection_poroidally(1.2, np.pi/4, np.pi/4)
@@ -1260,7 +1634,7 @@ if __name__ == '__main__':
     #imrec.plot_projection_image()
     #imrec.bokeh_local_image()
     #imrec.plot_local_image(p_opt_best=[30, 18, 1.0, 0.5], p_opt_best_2ndPeak=[20, 17, 0.1, 0.75])
-    #imrec.plot_local_image(p_opt_best=[1, 7, 0.77, 0.59], p_opt_best_2ndPeak=[0.5, 7, 1.43, 0.87])
+    #imrec.plot_local_image(p_opt_best=[1, 7, 0.77, 0.4], p_opt_best_2ndPeak=[0.5, 7, 1.43, 0.90])
     #imrec.spline_image()
     #imrec.plot_projection_image_spline()
     #imrec.plot_projection_image_spline_wrt_1reflection(reflection_factor=0.5)
