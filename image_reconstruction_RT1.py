@@ -17,20 +17,29 @@ from bokeh.plotting import figure, output_file, show, reset_output
 from multiprocessing import Pool
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from PIL import Image
+
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['font.size'] = 5
 
 def unwrap_self_plot_projection_image_spline_wrt_1reflection_MP(arg, **kwarg):
     return ImageReconstruction.plot_projection_image_spline_wrt_1reflection_MP(*arg, **kwarg)
 
 class ImageReconstruction:
-    def __init__(self):
+    def __init__(self, n, k):
         #self.p_opt_best = [35.210, 6.341, 1.501, 0.544]
+        self.n = n  #Refractive index
+        self.k = k  #Extinction coefficient
         self.p_opt_best = [30, 18, 1.0, 0.5]
         self.R_cam = 1.34439317 #[m]
         self.r_num = 100
         self.z_num = 100
         self.theta_max = np.deg2rad(44)#50.23)#np.arcsin(1/self.R_cam)#np.pi/3
         self.phi_max = self.theta_max/2#np.pi/6
+        print("Initialized\nRefractive index: %.4f, Extinction coefficient: %.4f\nPosition of detector: R=%4f[m]\
+                \nDivision number, r: %d, z:%d\nTheta max: %.2f [rad], Phi max: %.2f" \
+                % (self.n, self.k, self.R_cam, self.r_num, self.z_num, self.theta_max, self.phi_max))
 
     def projection_poroidally(self, theta, phi):
         dist_from_cam = np.linspace(0, 3.0, 200)
@@ -134,9 +143,9 @@ class ImageReconstruction:
         ne += np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best_2ndPeak, psix=psix, psi0=psi0, bb_limit=True), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
 
         # For third peak profile
-        p_opt_best_3rdPeak=[0.7, 7, 1.00, 0.55]
-        psix  = rt1.psi(p_opt_best_3rdPeak[3], 0.0, separatrix=True) # psi上のBが最小となる直線上の密度最大値
-        ne += np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best_3rdPeak, psix=psix, psi0=psi0, bb_limit=True), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
+        #p_opt_best_3rdPeak=[0.7, 7, 1.00, 0.55]
+        #psix  = rt1.psi(p_opt_best_3rdPeak[3], 0.0, separatrix=True) # psi上のBが最小となる直線上の密度最大値
+        #ne += np.array([list(map(lambda r, z : ne_profile_r2.ne_single_gaussian(r, z, *p_opt_best_3rdPeak, psix=psix, psi0=psi0, bb_limit=True), r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(r), len(z))
         #ne = np.where(psi > 0.006375, ne, 0.0)
         #ne[psi < 0.006390] = 0.0
         #ne[psi < 0.006600] = 0.0
@@ -456,8 +465,12 @@ class ImageReconstruction:
         '''
         r_TE = (np.cos(theta_i) - np.sqrt((n_R**2 - n_I**2 - np.sin(theta_i)**2) + 2j*n_I*n_R))\
               /(np.cos(theta_i) + np.sqrt((n_R**2 - n_I**2 - np.sin(theta_i)**2) + 2j*n_I*n_R))
+        #r_TE = 0.0 * theta_i
         r_TM = (-(n_R**2 - n_I**2 + 2j*n_R*n_I)*np.cos(theta_i) + np.sqrt((n_R**2 - n_I**2 - np.sin(theta_i)**2) + 2j*n_I*n_R))\
               /((n_R**2 - n_I**2 + 2j*n_R*n_I)*np.cos(theta_i) + np.sqrt((n_R**2 - n_I**2 - np.sin(theta_i)**2) + 2j*n_I*n_R))
+        #r_TM = (-(n_R**2 - n_I**2 + 2j*n_R*n_I)*np.cos(theta_i) + np.sqrt((n_R**2 - n_I**2 - np.sin(theta_i)**2) + 2j*n_I*n_R))
+        #r_TM = (-(n_R**2 - n_I**2 + 2*n_R*n_I)*np.cos(theta_i) + np.sqrt((n_R**2 - n_I**2 - np.sin(theta_i)**2) + 2*n_I*n_R))
+        #r_TM = (-(n_R**2 - n_I**2 + 2*n_R*n_I)*np.cos(theta_i))
 
         return np.abs(r_TE)**2, np.abs(r_TM)**2
 
@@ -467,6 +480,55 @@ class ImageReconstruction:
         plt.plot(theta_i, R_s, label='S-polarized')
         plt.plot(theta_i, R_p, label='P-polarized')
         plt.plot(theta_i, (R_s+R_p)/2, label='non-polarized')
+        plt.ylim(0, 1)
+        plt.xlabel('Angle of incidence [rad]')
+        plt.ylabel('Reflectance')
+        plt.xlim(0, np.pi/2)
+        plt.legend(fontsize=10)
+        plt.tight_layout()
+        plt.show()
+
+    def load_reflactive_index(self, input_wavelength_um):
+        '''
+        Feの反射率波長依存性データを読み込み
+        REFERENCES: "P. B. Johnson and R. W. Christy. Optical constants of transition metals: Ti, V, Cr, Mn, Fe, Co, Ni, and Pd, <a href=\"https://doi.org/10.1103/PhysRevB.9.5056\"><i>Phys. Rev. B</i> <b>9</b>, 5056-5070 (1974)</a>"
+        COMMENTS: "Room temperature"
+        :return:
+        指定した波長のときのFeの反射率を返す
+        '''
+        filepath = 'RefractiveIndexINFO_Fe.csv'
+        with codecs.open(filepath, 'r', 'Shift-JIS', 'ignore') as f:
+            data = pandas.read_csv(filepath)
+        print("Load %s" % filepath)
+        arr_data = np.array(data)
+        n = arr_data[:, 1]
+        k = arr_data[:, 2]
+        #injection_angle = np.deg2rad(arr_data[:, 0])
+        wavelength_um = arr_data[:, 0]
+        interp_relative_index_n = interp1d(wavelength_um, n, kind='quadratic')
+        interp_relative_index_k = interp1d(wavelength_um, k, kind='quadratic')
+        #wavelength_um_100 = np.linspace(0.19, 1.9, 100)
+        #plt.plot(wavelength_um, n)
+        #plt.plot(wavelength_um, k)
+        #plt.plot(wavelength_um_100, interp_relative_index_n(wavelength_um_100))
+        #plt.plot(wavelength_um_100, interp_relative_index_k(wavelength_um_100))
+        #plt.show()
+
+        print("Wavelength: %.3f um" % input_wavelength_um)
+
+        return interp_relative_index_n(input_wavelength_um), interp_relative_index_k(input_wavelength_um)
+
+
+    def plot_refractive_indices_388_447_706_728(self):
+        theta_i = np.linspace(0, np.pi/2, 100)
+        wavelength = np.array([388., 447., 468., 706., 728.])
+        wavelength /= 1000
+        for i_wavelength,_ in enumerate(wavelength):
+            n, k = self.load_reflactive_index(input_wavelength_um=wavelength[i_wavelength])
+            R_s, R_p = self.cal_refractive_indices_metal(theta_i, n, k)
+            #plt.plot(theta_i, R_s, label='S-polarized' + str(wavelength[i_wavelength]))
+            #plt.plot(theta_i, R_p, label='P-polarized' + str(wavelength[i_wavelength]))
+            plt.plot(theta_i, (R_s+R_p)/2, label='non-polarized (' + str(wavelength[i_wavelength]) + ' um)')
         plt.ylim(0, 1)
         plt.xlabel('Angle of incidence [rad]')
         plt.ylabel('Reflectance')
@@ -567,6 +629,10 @@ class ImageReconstruction:
         return x, y, z, x_1ref, y_1ref, z_1ref, reflection_factor
 
     def ray_trace_3D(self, dist_from_cam, theta, phi):
+        #n, k = self.load_reflactive_index(input_wavelength_um=0.468)
+        #n, k = 2.0509, 0.52747 #FB450-10 実測値
+        n, k = 0.70897, 0.42432 #FL730-10 実測値
+
         d_dist_from_cam = dist_from_cam[1] - dist_from_cam[0]
         vec_i = np.array([-np.cos(theta), np.sin(theta), np.sin(phi)])
         norm_vec_i = np.linalg.norm(vec_i)
@@ -622,7 +688,9 @@ class ImageReconstruction:
             y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] + d_dist_from_cam*sign_vec_ref[1]*vec_ref[1]*j_array/norm_vec_ref
             z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] + d_dist_from_cam*sign_vec_ref[2]*vec_ref[2]*j_array/norm_vec_ref
             injection_angle = self.cal_injection_angle_for2vector(vec_i, vec_n)
-            R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.6580, 2.8125)
+            R_s, R_p = self.cal_refractive_indices_metal(injection_angle, self.n, self.k)
+            #R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.6580, 2.8125)  #468nm
+            #R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.865, 3.235)   #730nm
             reflection_factor = (R_s + R_p)/2
         except:
             pass
@@ -700,7 +768,7 @@ class ImageReconstruction:
             y_1ref[index_is_inside_fcoil:] = reflectionpoint[1] + d_dist_from_cam*vec_ref[1]*j_array/norm_vec_ref
             z_1ref[index_is_inside_fcoil:] = reflectionpoint[2] + d_dist_from_cam*vec_ref[2]*j_array/norm_vec_ref
             injection_angle = self.cal_injection_angle_for2vector(vec_i, vec_n)
-            R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.6580, 2.8125)
+            R_s, R_p = self.cal_refractive_indices_metal(injection_angle, self.n, self.k)
             reflection_factor = (R_s + R_p)/2
         except:
             pass
@@ -725,7 +793,7 @@ class ImageReconstruction:
             y_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[1] + d_dist_from_cam*vec_ref[1]*j_array/norm_vec_ref
             z_1ref[index_is_inside_vacuum_vessel:] = reflectionpoint[2] + d_dist_from_cam*vec_ref[2]*j_array/norm_vec_ref
             injection_angle = self.cal_injection_angle_for2vector(vec_i, vec_n)
-            R_s, R_p = self.cal_refractive_indices_metal(injection_angle, 2.6580, 2.8125)
+            R_s, R_p = self.cal_refractive_indices_metal(injection_angle, self.n, self.k)
             reflection_factor = (R_s + R_p)/2
         except:
             pass
@@ -841,8 +909,8 @@ class ImageReconstruction:
         phi = self.phi_max - 2*self.phi_max*np.arange(self.z_num)/self.z_num
         r_image = np.linspace(0, 1, self.r_num)
         z_image = np.linspace(-0.5, 0.5, self.z_num)
-        #image_local = self.make_ne_image(r_image, z_image, p_opt_best, p_opt_best_2ndPeak)
-        image_local = image2ResizedGray(self.r_num, self.z_num)
+        image_local = self.make_ne_image(r_image, z_image, p_opt_best, p_opt_best_2ndPeak)
+        #image_local = image2ResizedGray(self.r_num, self.z_num)
         plt.figure(figsize=(16,12))
         plt.subplot(1,2,1)
         plt.imshow(image_local[::-1,:], cmap='jet', vmax=np.max(image_local[:np.int(0.8*self.r_num), :]), interpolation='none')
@@ -857,7 +925,7 @@ class ImageReconstruction:
         for i in range(self.r_num):
             for j in range(self.z_num):
                 x, y, z, x_1ref, y_1ref, z_1ref, reflection_factor = self.ray_trace_3D(dist_from_cam, theta[i], phi[j])
-                vec_i = np.array([-np.cos(theta[i]), np.sin(theta[i]), np.sin(phi[j])])
+                #vec_i = np.array([-np.cos(theta[i]), np.sin(theta[i]), np.sin(phi[j])])
                 #injection_angle = self.cal_injection_angle_for2vector(vec_i, np.array([-np.cos(self.theta_max/2), np.sin(self.theta_max/2), 0]))
                 #try:
                 #    relative_illumination = interp_relative_illumination(injection_angle)
@@ -880,17 +948,22 @@ class ImageReconstruction:
         image = np.sum(image_buf, axis=2)
         image_1ref = np.sum(image_1ref_buf, axis=2)
         plt.subplot(1,2,2)
-        #plt.imshow(image.T, cmap='jet')
+        #plt.imshow(image_1ref.T, cmap='jet')
         plt.imshow((image + image_1ref).T, cmap='jet', interpolation='none')
         plt.title("Projection")
 
         plt.tight_layout()
-        plt.show()
-        plt.savefig("SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
-                    (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3],\
+        #plt.show()
+        #r = np.linspace(0, 1.0, self.r_num)
+        #plt.plot(r, image[:, np.int(self.z_num/2)], label='w/o reflection')
+        #plt.plot(r, image[:, np.int(self.z_num/2)] + image_1ref[:, np.int(self.z_num/2)], label='w/ reflection')
+        #plt.legend()
+        #plt.show()
+        plt.savefig("SimCIS_n%.4f_k%.4f_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                    (self.n, self.k, p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3],\
                      p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
-        np.savez("SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
-                 (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3],\
+        np.savez("SimCIS_n%.4f_k%.4f_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
+                 (self.n, self.k, p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3],\
                   p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]),\
                   image_local=image_local, image=image, image_1ref=image_1ref, p_opt_best=p_opt_best, p_opt_best_2ndPeak=p_opt_best_2ndPeak, dist_from_cam=dist_from_cam)
 
@@ -1154,8 +1227,8 @@ def set_axes_equal(ax):
     radius = 0.5 * np.max(np.abs(limits[:, 1] - limits[:, 0]))
     set_axes_radius(ax, origin, radius)
 
-def make_line_integrated_images(num_loop, frame=None, num_Process=None):
-    imrec = ImageReconstruction()
+def make_line_integrated_images(n, k, num_loop, frame=None, num_Process=None):
+    imrec = ImageReconstruction(n, k)
     num = 0
     if num_Process > 1:
         st_loop = np.int(num_loop*frame/num_Process)
@@ -1464,18 +1537,20 @@ def compare_allimages_indir(path):
                 nrm.append(buf_nrm.tolist())
                 s.append(buf_s.tolist())
                 p.append(buf_p.tolist())
-                if s_max < buf_s:
-                    s_max = buf_s
-                    path_A_smax = path_A
-                if s_min > buf_s:
-                    s_min = buf_s
-                    path_A_smin = path_A
+                if buf_s > 0.97:
+                    print(filename)
+                #if s_max < buf_s:
+                #    s_max = buf_s
+                #    path_A_smax = path_A
+                #if s_min > buf_s:
+                #    s_min = buf_s
+                #    path_A_smin = path_A
 
     m_mean = np.mean(m)
     m_stdev = np.std(m)
     nrm_mean = np.mean(nrm)
     nrm_stdev = np.std(nrm)
-    nrm_max = np.max(nrm)
+    nrm_min = np.min(nrm)
     s_mean = np.mean(s)
     s_stdev = np.std(s)
     s_max = np.max(s)
@@ -1484,13 +1559,14 @@ def compare_allimages_indir(path):
     p_max = np.max(p)
 
     print(m_mean, m_stdev)
-    print(nrm_mean, nrm_stdev)
-    print(s_mean, s_stdev)
-    print(p_mean, p_stdev)
+    print(nrm_mean, nrm_stdev, nrm_min)
+    print(s_mean, s_stdev, s_max)
+    print(p_mean, p_stdev, p_max)
+    print("FINISH")
 
 def load_intensityCIS():
-    data = np.load("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/CoherenceImaging/intensity_CIS/CIS発光量/I0_2D_r_20180921d0055.txt.npy")
-    #data = np.load("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/CoherenceImaging/intensity_CIS/発光量(ICH実験)/I0_2D_r_20180921d0069.txt.npy")
+    #data = np.load("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/CoherenceImaging/intensity_CIS/CIS発光量/I0_2D_r_20180921d0055.txt.npy")
+    data = np.load("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/CoherenceImaging/intensity_CIS/発光量(ICH実験)/I0_2D_r_20180921d0069.txt.npy")
     #data = np.load("/Users/kemmochi/SkyDrive/Document/Study/Fusion/RT1/CoherenceImaging/intensity_CIS/発光量(ICH実験)/I0_2D_r_20171111d0037.txt.npy")
     data = data[::-1, :]
     orgHeight, orgWidth = data.shape[:2]
@@ -1505,11 +1581,12 @@ def load_intensityCIS():
     #plt.imshow(squareImg, cmap='jet')
     #plt.show()
     #size = (np.int(orgHeight/10), np.int(orgWidth/10))
-    size = (100, 100)
+    size = (256,256)
+    #size = (100, 100)
     OpenCV_data = np.asarray(squareImg)
     resizedImg = cv2.resize(OpenCV_data, size, interpolation=cv2.INTER_CUBIC)
-    resizedImg[:,:10] = 0.0
-    resizedImg[:,-10:] = 0.0
+    resizedImg[:,:30] = 0.0
+    resizedImg[:,-30:] = 0.0
     blur = cv2.blur(resizedImg, (5,3))
     gblur = cv2.GaussianBlur(resizedImg, (5, 5), 2)
     #mblur = cv2.medianBlur(resizedImg, ksize=5)
@@ -1537,8 +1614,11 @@ def load_intensityCIS():
     plt.axis("off")
     plt.tick_params(bottom=False, left=False, right=False, top=False,labelbottom=False,labelleft=False,labelright=False,labeltop=False)
     plt.subplots_adjust(left=0., right=1., bottom=0., top=1.)
-    plt.imshow(blur, cmap='jet', interpolation=None, vmax=610)
-    #plt.savefig("intensity_CIS_woICH_sn69.png", bbox_inches="tight", pad_inches=-0.04)
+    #plt.imshow(blur[22:-18, 7:-23], cmap='jet', interpolation=None, vmax=610)
+    #plt.imshow(blur[26:-51, 13:-13], cmap='jet', interpolation=None, vmax=610)
+    #plt.imshow(blur[29:-48, 13:-13], cmap='jet', interpolation=None, vmax=610)
+    plt.imshow(blur, cmap='jet', interpolation=None, vmax=640)
+    plt.savefig("intensity_CIS_woICH_sn69_256.png", bbox_inches="tight", pad_inches=-0.04)
 
 def changecolormap(image, origin_cmap, target_cmap):
     r = np.linspace(0,1, 256)
@@ -1563,31 +1643,51 @@ def changecolormap(image, origin_cmap, target_cmap):
 
 def image2ResizedGray(r_num, z_num):
     #buf_image_local = plt.imread('export_CIS_5_step518k.png')
-    buf_image_local = plt.imread('export_intensity_CIS_woICH_sn69.png')
+    buf_image_local = plt.imread('export_intensity_CIS_wICH_sn70.png')
+    #buf_image_local = plt.imread('export_intensity_CIS_woICH_sn69.png')
     #buf_image_local = plt.imread('export_test_CIS_square.png')
     #buf_image_local = cv2.resize(buf_image_local, (r_num, z_num))
     #image_local = changecolormap(buf_image_local, plt.cm.jet, plt.cm.viridis)
     image_local = changecolormap(buf_image_local, plt.cm.jet, plt.cm.gray)
     image_local = cv2.cvtColor(image_local, cv2.COLOR_BGR2GRAY)
-    image_local = cv2.resize(image_local, (r_num, z_num))
+    #image_local = cv2.resize(image_local, (r_num, z_num))
+    i_max, j_max = np.shape(image_local)
+    img_mask = np.zeros((i_max, j_max))
+    for i in range(i_max):
+        for j in range(j_max):
+            if i>np.int(0.1*i_max) and i<np.int(0.8*i_max) and np.int((i - 0.45*i_max)**2 + (j - 0.5*j_max)**2) < (0.40*i_max)**2:
+                img_mask[i, j] = 1
+
+    image_local[(image_local>0.2) & (img_mask==0)] = 0.0
+    #image_local = np.where((image_local>0.25) & (img_mask==0), 0.0, image_local)
+    #image_local[img_mask==0] = 0.0
     image_local = image_local[::-1,:]
-    image_local[:15,:] = 0.0
-    image_local[-22:,:] = 0.0
-    image_local[:, -19:] = 0.0
+    #image_local[:15,:] = 0.0
+    #image_local[-22:,:] = 0.0
+    #image_local[:, -19:] = 0.0
     #image_local[:, 3:] = image_local[:, :-3]
     #image_local[3:, :] = image_local[:-3, :]
-    image_local[2:, :] = image_local[:-2, :]
+    #image_local[2:, :] = image_local[:-2, :]
+    #image_local[:, 8:] = image_local[:, :-8]
+    image_local[8:, :] = image_local[:-8, :]
+    #image_local[5:, :] = image_local[:-5, :]
 
-    plt.figure(figsize=(8, 8))
-    plt.subplot(111)
+    #最大が１になるように規格化
+    #image_local /= np.max(image_local)
+    image_local /= 0.89
+
+
+    fig = plt.figure(dpi=200)
+    ax = plt.subplot(111)
+    plt.tick_params(labelsize=15)
 
     separatrix = True  # if pure dipole configuration, change this to 'False'
     levels = [0.005, 0.006, 0.007, 0.008, 0.009, 0.01, 0.011, 0.012, 0.013, 0.014]
     rs = np.linspace( 0.0, 1.001, 200)
     zs = np.linspace(-0.5, 0.501, 200)
     r_mesh, z_mesh = np.meshgrid(rs, zs)
-    plt.imshow(image_local[::,:], origin='lower', cmap='jet', \
-                     extent=(rs.min(), rs.max(), zs.min(), zs.max()))
+    img = plt.imshow(image_local[::,:], origin='lower', cmap='jet', \
+                     extent=(rs.min(), rs.max(), zs.min(), zs.max()), vmax=1.0) #vmax=0.9
     mag_strength = np.array(
         [list(map(lambda r, z: np.sqrt(rt1.bvec(r, z, separatrix)[0] ** 2 + rt1.bvec(r, z, separatrix)[1] ** 2),
                   r_mesh.ravel(), z_mesh.ravel()))]).ravel().reshape(len(rs), len(zs))
@@ -1607,6 +1707,17 @@ def image2ResizedGray(r_num, z_num):
     #plt.title(r'$n_\mathrm{e}$')
     plt.xlabel(r'$r\mathrm{\ [m]}$')
     plt.ylabel(r'$z\mathrm{\ [m]}$')
+    plt.xlim(0.05, 0.95)
+    plt.ylim(-0.3, 0.4)
+    # plt.gca():現在のAxesオブジェクトを返す
+    divider = make_axes_locatable(plt.gca())
+    # カラーバーの位置
+    cax = divider.append_axes("right", "5%", pad="3%")
+    cb = plt.colorbar(img, cax=cax)
+    cb.set_clim(0,6.4)
+    cb.ax.tick_params(labelsize=15)
+    #cb.set_label('Intensity [a.u.]')
+    plt.tight_layout(pad=1.0, w_pad=2.0, h_pad=1.0)
     plt.tight_layout()
     plt.show()
 
@@ -1615,19 +1726,24 @@ def image2ResizedGray(r_num, z_num):
 if __name__ == '__main__':
     start = time.time()
 
-    #make_line_integrated_images(num_loop=2, frame=1, num_Process=2)
+    n, k = 1.7689, 0.60521 #FB450-10 実測値
+    #n, k = 0.70249, 0.36890 #FL730-10 実測値
+    make_line_integrated_images(n, k, num_loop=2, frame=2, num_Process=2)
     #png2video(3)
     #make_dataset_for_pix2pix(3)
     #mask_with_circle()
     #make_maskedImg(num_loop=3)
     #make_1maskedImg(p_opt_best=[1, 7, 0.77, 0.4], p_opt_best_2ndPeak=[0.5, 7, 1.43, 0.90])
-    #path_A = "/users/kemmochi/skydrive/document/study/fusion/rt1/coherenceimaging/tomography/pix2pix/epochs100/images/simcis_1st1_1_0.1_0.38_2nd0.50_7_0.8_0.78-outputs.png"
-    #path_B = "/users/kemmochi/skydrive/document/study/fusion/rt1/coherenceimaging/tomography/pix2pix/epochs100/images/simcis_1st1_1_0.1_0.38_2nd0.50_7_0.8_0.78-targets.png"
+    #path_A = "/Volumes/kemmochi/Documents/RT1/pix2pix-tensorflow/modified_docker/Projection2Local/masked/epochs100/images/SimCIS_1st1_7_0.8_0.38_2nd0.50_1_1.4_0.78-outputs.png"
+    #path_B = "/Volumes/kemmochi/Documents/RT1/pix2pix-tensorflow/modified_docker/Projection2Local/masked/epochs100/images/SimCIS_1st1_7_0.8_0.38_2nd0.50_1_1.4_0.78-targets.png"
     #compare_images(path_A, path_B)
-    compare_allimages_indir("/Volumes/kemmochi/Documents/RT1/pix2pix-tensorflow/modified_docker/Projection2Local/masked/epochs100/images")
+    #compare_allimages_indir("/Volumes/kemmochi/Documents/RT1/pix2pix-tensorflow/modified_docker/Projection2Local/masked/epochs100/images")
     #load_intensityCIS()
+    #image2ResizedGray(r_num=100, z_num=100)
 
-    #imrec = ImageReconstruction()
+    #n, k = 0.70249, 0.36890 #FL730-10 実測値
+    #n, k = 1.7689, 0.60521 #FB450-10 実測値
+    #imrec = ImageReconstruction(n, k)
     #imrec.projection_poroidally(1.2, np.pi/4, np.pi/4)
     #imrec.projection_poroidally(0.9, 0, 0)
     #imrec.plot_projection()
@@ -1641,6 +1757,11 @@ if __name__ == '__main__':
     #imrec.plot_projection_image_spline_wrt_1reflection_v3(reflection_factor=0.5)
     #imrec.run()
     #imrec.plot_refractive_indices(2.6580, 2.8125)
+    #imrec.plot_refractive_indices(2.15, 0.8)
+    #imrec.plot_refractive_indices(1.2, 1.1)
+    #imrec.plot_refractive_indices(n, k)
+    #imrec.plot_refractive_indices(0.70897, 0.42432)
+    #imrec.plot_refractive_indices_388_447_706_728()
     #imrec.plot_3D_ray(showRay=True, showFC=True, showLC=True, showVV=True, showCS=True)
     #imrec.plot_3D_ray_broadcast(showRay=True, showFC=False, showLC=False, showVV=False, showCS=False)
     #imrec.load_relative_illumination_2D()
@@ -1648,6 +1769,7 @@ if __name__ == '__main__':
     #imrec.plot_3Dto2D_broadcast()
     #imrec.plot_3Dto2D(p_opt_best=[30, 18, 1.0, 0.5], p_opt_best_2ndPeak=[20, 17, 0.1, 0.75])
     #imrec.plot_3Dto2D(p_opt_best=[1, 7, 0.77, 0.59], p_opt_best_2ndPeak=[0.5, 7, 1.43, 0.87])
+    #imrec.plot_3Dto2D(p_opt_best=[1, 7, 1.00, 0.49], p_opt_best_2ndPeak=[1.0, 13, 0.30, 0.75])
     #imrec.load_image(p_opt_best=[30, 18, 1.0, 0.5], p_opt_best_2ndPeak=[20, 17, 0.1, 0.75])
     #imrec.load_relative_illumination()
 

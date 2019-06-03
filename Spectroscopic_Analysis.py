@@ -105,6 +105,52 @@ class SpectAnal(Abel_ne):
     def exp(self, x, k0, k1, k2):
         return k0 + k1*np.exp(-k2*x)
 
+    def make_spectrum(self, Ti, Vi):
+        wavelength = np.linspace(468.2, 468.8, 6)
+        dx = Vi*468.565/299800000
+        k0 = 0.0
+        k1 = 1.0
+        k3 = dx
+        k4 = np.sqrt((468.565*np.sqrt(Ti/(469000000*4)))**2+self.instwid**2)
+        fig,axes = plt.subplots(nrows=5, ncols=2)
+        cnt=0
+        #for i in range(wavelength.__len__()):
+        for i in range(5):
+            for j in range(1):
+                y = self.HefitverS_const_wl(wavelength[cnt], k0, k1, k3, k4)
+                #plt.imshow(y, cmap='jet')
+                axes[i,j].imshow(y, cmap='jet')
+                #plt.show()
+                #plt.clf()
+                cnt+=1
+        #plt.plot(wavelength, y)
+        plt.show()
+
+
+    def load_image(self, p_opt_best, p_opt_best_2ndPeak):
+        images = np.load("dataset_SimCIS/SimCIS_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.npz" % \
+                         (p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                          p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3]))
+        image_local = images['image_local']
+        image = images['image']
+        image_1ref = images['image_1ref']
+
+
+        Ti_local = 70*image_local[::-1,:]
+        Ti_projection = (image + image_1ref).T
+        Vi_2D = np.zeros(np.shape(Ti_projection))
+        spectrum_2D_local = self.make_spectrum(Ti_local, Vi_2D)
+        spectrum_2D_projection = self.make_spectrum(Ti_projection, Vi_2D)
+
+        plt.figure(figsize=(16,12))
+        plt.subplot(1,2,1)
+        plt.imshow(image_local[::-1,:], cmap='jet')
+        plt.title("1st: %s\n2nd: %s\nLocal" % (p_opt_best, p_opt_best_2ndPeak))
+        plt.subplot(1,2,2)
+        plt.imshow((image + image_1ref).T, cmap='jet')
+        plt.title("Projection")
+        plt.show()
+
 
     def gauss_fitting(self, Species, isAbel=False, spline=False, convolve=False, isPLOT=True, is1CH=False, CH=None):
         bounds_st = np.array([471.2, 468.45, 464.6])    #[HeI, HeII, CIII]
@@ -370,10 +416,12 @@ def _mount():
 
 
 if __name__ == '__main__':
-    span = SpectAnal(date=20171223, arr_shotNo=[80], LOCALorPPL="PPL",
+    span = SpectAnal(date=20171223, arr_shotNo=[80], LOCALorPPL="LOCAL",
     #                 #instwid=0.020104, lm0=462.2546908755637, dlm=0.01221776718749085, opp_ch=[5, 6])
     #                 #instwid=0.016831, lm0=462.195, dlm=0.0122182, opp_ch=[5, 6])   #7-11 Nov. 2017
                      instwid=0.017867, lm0=462.235, dlm=0.0122165, opp_ch=[5, 6])   #19-23 Dec. 2017
-    span.gauss_fitting(Species="HeII", isAbel=True, spline=False, convolve=False)
+    #span.make_spectrum(Ti=0, Vi=0)
+    span.load_image(p_opt_best=[1, 11, 1.10, 0.54], p_opt_best_2ndPeak=[0.10, 1, 0.10, 0.70])
+    #span.gauss_fitting(Species="HeII", isAbel=True, spline=False, convolve=False)
     #make_profile(date=20171223, ch=1, Species="HeII")
 
