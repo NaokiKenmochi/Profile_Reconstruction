@@ -1229,7 +1229,7 @@ def set_axes_equal(ax):
 
 def make_line_integrated_images(n, k, num_loop, frame=None, num_Process=None):
     imrec = ImageReconstruction(n, k)
-    ratio_1st_per_2nd = [0.1, 0.25, 0.5, 1.0, 2.0, 10]
+    ratio_1st_per_2nd = [0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 10]
     num = 0
     if num_Process > 1:
         st_loop = np.int((num_loop+3)*frame/num_Process)
@@ -1240,21 +1240,27 @@ def make_line_integrated_images(n, k, num_loop, frame=None, num_Process=None):
         frame = 0
         num_Process = 1
 
-    num_allstep = (num_loop+3)*(num_loop+1)**2*num_loop**4/2
+    num_allstep = (num_loop+2)*num_loop**6
 
     for j0 in range(st_loop, ed_loop):
         for i1 in range(num_loop):
             for i2 in range(num_loop):
-                #for i3 in range(num_loop+1):
-                for i3 in range(np.int((num_loop+1)/2)):
+                for i3 in range(num_loop):
+                #for i3 in range(np.int((num_loop+1)/2)):
                     for j1 in range(num_loop):
                         for j2 in range(num_loop):
-                            for j3 in range(num_loop+1):
+                            for j3 in range(num_loop):
                                 p_opt_best = [1, 1 + 20*i1/num_loop, 0.1 + 2.0*i2/num_loop, 0.38 + 0.32*i3/num_loop]
                                 #p_opt_best_2ndPeak = [10**(-1 + 2*j0/num_loop), 1 + 20*j1/num_loop, 0.1 + 2.0*j2/num_loop, 0.70 + 0.25*j3/num_loop]
                                 p_opt_best_2ndPeak = [ratio_1st_per_2nd[j0], 1 + 20 * j1 / num_loop,
                                                       0.1 + 2.0 * j2 / num_loop, 0.70 + 0.25 * j3 / num_loop]
-                                imrec.plot_3Dto2D(p_opt_best, p_opt_best_2ndPeak)
+                                file_name = "SimCIS_n%.4f_k%.4f_1st%d_%d_%.1f_%.2f_2nd%.2f_%d_%.1f_%.2f.png" % \
+                                            (n, k, p_opt_best[0], p_opt_best[1], p_opt_best[2], p_opt_best[3], \
+                                             p_opt_best_2ndPeak[0], p_opt_best_2ndPeak[1], p_opt_best_2ndPeak[2], p_opt_best_2ndPeak[3])
+                                if os.path.exists(file_name):
+                                    print("File already exists")
+                                else:
+                                    imrec.plot_3Dto2D(p_opt_best, p_opt_best_2ndPeak)
                                 num+=1
                                 print('Progress (%d/%d): %d/%d (%.2f percent)' % (frame+1, num_Process, num, num_allstep/num_Process, 100*num*num_Process/num_allstep))
 
@@ -1734,7 +1740,7 @@ if __name__ == '__main__':
 
     n, k = 1.7689, 0.60521 #FB450-10 実測値
     #n, k = 0.70249, 0.36890 #FL730-10 実測値
-    make_line_integrated_images(n, k, num_loop=3, frame=0, num_Process=6)
+    make_line_integrated_images(n, k, num_loop=5, frame=0, num_Process=7)
     #png2video(3)
     #make_dataset_for_pix2pix(3)
     #mask_with_circle()
